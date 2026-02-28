@@ -1,7 +1,7 @@
 export default function Home() {
   return (
     <main>
-      <p>CLearDebt</p>
+      <p>ClearDebt</p>
     </main>
   );
 }
