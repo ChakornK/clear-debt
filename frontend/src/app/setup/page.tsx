@@ -70,7 +70,7 @@ export default function Setup() {
           {/* subtext */}
           <p className="text-slate-600 dark:text-slate-400 pb-4">Set estimated costs for common activities detected in your calendar.</p>
           {/* activity input fields */}
-          <div className="flex flex-row gap-4">
+          <div className="flex flex-row flex-wrap gap-4">
             {activities.map((a) => (
             <ActivityInputField key={a.key} value={a.value} />
           ))}
