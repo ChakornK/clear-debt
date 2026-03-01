@@ -26,6 +26,7 @@ interface Activity {
   name: string;
   category: string;
   estimatedCost: number;
+  synced?: boolean;
 }
 
 const STEPS = [
@@ -39,7 +40,7 @@ const STEPS = [
 export default function Setup() {
   const [debts, setDebts] = useState<Debt[]>([]);
 
-  const [activities, setActivities] = useState<Activity[]>([{ id: 1, name: "", category: "Food & Dining", estimatedCost: 0 }]);
+  const [activities, setActivities] = useState<Activity[]>([{ id: 1, name: "", category: "Food & Dining", estimatedCost: 0, synced: false }]);
 
   const [monthlyIncome, setMonthlyIncome] = useState<number>(0);
   const [monthlyLimit, setMonthlyLimit] = useState<number>(0);
@@ -74,7 +75,7 @@ export default function Setup() {
             setStep(1);
           }
           if (data.debts?.length > 0) setDebts(data.debts);
-          if (data.activities?.length > 0) setActivities(data.activities);
+          if (data.activities?.length > 0) setActivities(data.activities.map((a: Activity) => ({ ...a, synced: true })));
           if (data.monthly_income) setMonthlyIncome(data.monthly_income);
           if (data.monthly_limit) setMonthlyLimit(data.monthly_limit);
           if (data.savings_pct) setSavingsPct(data.savings_pct);
@@ -128,12 +129,26 @@ export default function Setup() {
         name: "",
         category: "Food & Dining",
         estimatedCost: 0,
+        synced: false,
       },
     ]);
   };
 
-  const removeActivityElement = (id: number) => {
+  const removeActivityElement = async (id: number) => {
+    const activity = activities.find((a) => a.id === id);
+    // Optimistically remove from UI immediately
     setActivities((prev) => prev.filter((a) => a.id !== id));
+    // If this trigger came from the server, permanently block it
+    if (activity?.synced && activity.name.trim()) {
+      try {
+        await apiFetch("/api/triggers/block", {
+          method: "POST",
+          body: JSON.stringify({ label: activity.name.trim() }),
+        });
+      } catch (err) {
+        console.error("Failed to block trigger", err);
+      }
+    }
   };
 
   const onActivityFieldChange = (id: number, field: string, value: string | number) => {

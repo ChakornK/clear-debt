@@ -8,7 +8,8 @@ from snowflake_client import (get_cached_category_mappings, get_transactions_raw
   save_debts, get_debts, save_transactions, get_spending_summary,
   save_calendar_events, get_calendar_events, delete_calendar_event, save_plan, get_connection,
   get_cached_milestone, save_milestone, save_category_mappings,
-  get_dashboard_data, save_user_preferences, get_user_preferences)
+  get_dashboard_data, save_user_preferences, get_user_preferences,
+  ensure_schema, get_blocked_triggers, block_trigger)
 import time
 from cortex import generate_plan, chat, generate_milestone, classify_transactions, predict_event_spend, predict_events_batch
 from google_calendar_client import get_google_calendar_events
@@ -21,6 +22,10 @@ import asyncio, os, json
 from auth import router as auth_router, get_current_user
 
 app = FastAPI(title="ClearDebt API")
+
+@app.on_event("startup")
+def on_startup():
+  ensure_schema()
 
 # ── MIDDLEWARE ─────────────────────────────────────────
 app.add_middleware(CORSMiddleware,
@@ -143,9 +148,24 @@ def get_user_setup_route(user: dict = Depends(get_current_user)):
 
     prefs, debts, events = f_prefs.result(), f_debts.result(), f_events.result()
 
+    # Filter invalid, deduplicate, and exclude permanently blocked triggers
+    blocked = get_blocked_triggers(user_id)
+    seen_labels: set = set()
+    valid_events = []
+    for e in events:
+      label = (e.get('label') or '').strip()
+      category = (e.get('type') or '').strip()
+      amount = e.get('amount') or 0
+      if not label or not category or amount <= 0:
+        continue
+      if label in blocked or label in seen_labels:
+        continue
+      seen_labels.add(label)
+      valid_events.append(e)
+
     activities = [
-      {"id": i + 1, "name": e['label'], "category": e['type'], "estimatedCost": e['amount']}
-      for i, e in enumerate(events)
+      {"id": i + 1, "name": e['label'].strip(), "category": e['type'].strip(), "estimatedCost": e['amount']}
+      for i, e in enumerate(valid_events)
     ]
 
     return {
@@ -257,6 +277,23 @@ async def predict_event_cost(req: PredictEventRequest, user: dict = Depends(get_
   except Exception as e:
     raise HTTPException(status_code=500, detail=str(e))
 
+class BlockTriggerRequest(BaseModel):
+  label: str
+
+@app.post("/api/triggers/block")
+def block_trigger_route(req: BlockTriggerRequest, user: dict = Depends(get_current_user)):
+  try:
+    label = (req.label or '').strip()
+    if not label:
+      raise HTTPException(status_code=400, detail="Label is required")
+    block_trigger(user['sub'], label)
+    _invalidate_dashboard(user['sub'])
+    return {"blocked": label}
+  except HTTPException:
+    raise
+  except Exception as e:
+    raise HTTPException(status_code=500, detail=str(e))
+
 @app.post("/api/google-calendar/sync")
 async def sync_google_calendar(request: Request, user: dict = Depends(get_current_user)):
   try:
@@ -266,6 +303,12 @@ async def sync_google_calendar(request: Request, user: dict = Depends(get_curren
       raise HTTPException(status_code=401, detail="Google access token not found. Please log in again.")
 
     google_events = await get_google_calendar_events(access_token, days=30)
+    if not google_events:
+      return {"synced": 0, "events": []}
+
+    blocked = get_blocked_triggers(user_id)
+    # Filter out blocked labels from incoming Google events before any processing
+    google_events = [e for e in google_events if e.get('label', '').strip() not in blocked]
     if not google_events:
       return {"synced": 0, "events": []}
 

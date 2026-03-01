@@ -64,8 +64,14 @@ def ensure_schema():
       "CREATE TABLE IF NOT EXISTS USER_MILESTONES (USER_ID STRING, MILESTONE_JSON VARIANT, CREATED_AT TIMESTAMP DEFAULT CURRENT_TIMESTAMP())",
       "CREATE TABLE IF NOT EXISTS CATEGORY_MAPPINGS (RAW_CATEGORY STRING PRIMARY KEY, BUCKET_NAME STRING)",
       "CREATE TABLE IF NOT EXISTS USER_PREFERENCES (USER_ID STRING PRIMARY KEY, MONTHLY_INCOME FLOAT, MONTHLY_LIMIT FLOAT, SAVINGS_PCT FLOAT)",
+      "CREATE TABLE IF NOT EXISTS USER_BLOCKED_TRIGGERS (USER_ID STRING, LABEL STRING, CREATED_AT TIMESTAMP DEFAULT CURRENT_TIMESTAMP(), PRIMARY KEY (USER_ID, LABEL))",
     ]:
-      cur.execute(stmt)
+      try:
+        cur.execute(stmt)
+      except Exception as e:
+        # Snowflake can raise "ambiguous column name" for ADD COLUMN IF NOT EXISTS
+        # when the column already exists — safe to ignore all schema-migration warnings.
+        print(f"[ensure_schema] skipped: {e}")
     conn.commit()
 
 def save_access_token(user_id, access_token, item_id):
@@ -184,6 +190,30 @@ def get_calendar_events(user_id, future_only=False):
     query += " ORDER BY EVENT_DATE ASC"
     cur.execute(query, (user_id,))
     return [{'date': str(r[0]), 'type': r[1], 'label': r[2], 'amount': r[3]} for r in cur.fetchall()]
+
+def get_blocked_triggers(user_id) -> set:
+  with get_connection() as conn:
+    cur = conn.cursor()
+    cur.execute("SELECT LABEL FROM USER_BLOCKED_TRIGGERS WHERE USER_ID = %s", (user_id,))
+    return {row[0] for row in cur.fetchall()}
+
+def block_trigger(user_id, label):
+  """Permanently block a trigger label for a user and delete it from CALENDAR_EVENTS."""
+  with get_connection() as conn:
+    cur = conn.cursor()
+    # Add to blocklist (ignore if already blocked)
+    cur.execute("""
+      MERGE INTO USER_BLOCKED_TRIGGERS AS target
+      USING (SELECT %s AS USER_ID, %s AS LABEL) AS source
+      ON target.USER_ID = source.USER_ID AND target.LABEL = source.LABEL
+      WHEN NOT MATCHED THEN INSERT (USER_ID, LABEL) VALUES (source.USER_ID, source.LABEL)
+    """, (user_id, label))
+    # Remove all matching events from CALENDAR_EVENTS
+    cur.execute(
+      "DELETE FROM CALENDAR_EVENTS WHERE USER_ID = %s AND LABEL = %s",
+      (user_id, label)
+    )
+    conn.commit()
 
 def delete_calendar_event(user_id, date, label):
     with get_connection() as conn:
