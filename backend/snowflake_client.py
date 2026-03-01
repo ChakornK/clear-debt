@@ -4,6 +4,7 @@ import os, json, threading, queue
 from contextlib import contextmanager
 from concurrent.futures import ThreadPoolExecutor
 from time import time
+from datetime import datetime, timedelta
 
 load_dotenv()
 
@@ -433,3 +434,129 @@ def get_user_preferences(user_id):
     if row:
       return {"monthly_income": row[0], "monthly_limit": row[1], "savings_pct": row[2]}
     return None
+  
+def get_user_milestones(user_id):
+  """Derive milestones from real user data across debts, transactions, and challenges."""
+  with get_connection() as conn:
+    cur = conn.cursor()
+
+    milestones = []
+    now = datetime.utcnow()
+
+    # ── 7-Day Spending Streak ──────────────────────
+    cur.execute("""
+      SELECT TX_DATE, SUM(AMOUNT) as daily_total
+      FROM TRANSACTIONS
+      WHERE USER_ID = %s
+        AND IS_INCOME = FALSE
+        AND TX_DATE >= DATEADD(day, -14, CURRENT_DATE)
+      GROUP BY TX_DATE
+      ORDER BY TX_DATE DESC
+    """, (user_id,))
+    daily_rows = {str(r[0]): r[1] for r in cur.fetchall()}
+
+    cur.execute("SELECT MONTHLY_LIMIT FROM USER_PREFERENCES WHERE USER_ID = %s", (user_id,))
+    pref = cur.fetchone()
+    daily_budget = (pref[0] / 30) if pref else 50
+
+    streak = 0
+    for i in range(7):
+      day = (now - timedelta(days=i)).strftime("%Y-%m-%d")
+      if daily_rows.get(day, 0) <= daily_budget:
+        streak += 1
+      else:
+        break
+
+    if streak >= 3:
+      milestones.append({
+        "title": f"{streak}-Day Spending Streak",
+        "description": f"You stayed under budget for {streak} days in a row!",
+        "timestamp": now - timedelta(hours=1),
+        "badge": "🔥 Streak",
+      })
+
+    # ── Saved $X This Month ────────────────────────
+    cur.execute("""
+      SELECT MONTHLY_INCOME, MONTHLY_LIMIT FROM USER_PREFERENCES WHERE USER_ID = %s
+    """, (user_id,))
+    prefs = cur.fetchone()
+    if prefs and prefs[0] and prefs[1]:
+      income, limit = prefs
+      cur.execute("""
+        SELECT COALESCE(SUM(AMOUNT), 0)
+        FROM TRANSACTIONS
+        WHERE USER_ID = %s
+          AND IS_INCOME = FALSE
+          AND TX_DATE >= DATE_TRUNC('MONTH', CURRENT_DATE)
+      """, (user_id,))
+      spent_row = cur.fetchone()
+      spent_this_month = spent_row[0] if spent_row else 0
+      saved = income - spent_this_month
+      if saved > 0:
+        milestones.append({
+          "title": f"Saved ${round(saved):,} This Month",
+          "description": "You've kept spending below your income this month.",
+          "timestamp": now - timedelta(hours=2),
+          "badge": "💰 Savings",
+        })
+
+    # ── Top 10% (streak-based proxy) ──────────────
+    if streak >= 5:
+      milestones.append({
+        "title": "Entered Top 10%",
+        "description": "Your streak puts you in the top 10% of savers this week.",
+        "timestamp": now - timedelta(days=1),
+        "badge": "🏆 Rank",
+      })
+
+    # ── No-Spend Day ───────────────────────────────
+    cur.execute("""
+      SELECT COUNT(DISTINCT TX_DATE)
+      FROM TRANSACTIONS
+      WHERE USER_ID = %s
+        AND IS_INCOME = FALSE
+        AND AMOUNT = 0
+    """, (user_id,))
+    no_spend_row = cur.fetchone()
+    yesterday = (now - timedelta(days=1)).strftime("%Y-%m-%d")
+    if daily_rows.get(yesterday, 999) == 0:
+      milestones.append({
+        "title": "No-Spend Day",
+        "description": "You had zero discretionary spending yesterday.",
+        "timestamp": now - timedelta(days=1),
+        "badge": "⭐ Milestone",
+      })
+
+    # ── Budget Beater ──────────────────────────────
+    cur.execute("""
+      SELECT COALESCE(SUM(AMOUNT), 0)
+      FROM TRANSACTIONS
+      WHERE USER_ID = %s
+        AND IS_INCOME = FALSE
+        AND TX_DATE >= DATEADD(day, -7, CURRENT_DATE)
+    """, (user_id,))
+    weekly_spent_row = cur.fetchone()
+    weekly_spent = weekly_spent_row[0] if weekly_spent_row else 0
+    weekly_budget = (pref[0] / 4.33) if pref else 200
+    if weekly_spent < weekly_budget * 0.7:
+      milestones.append({
+        "title": "Budget Beater",
+        "description": f"Spent ${round(weekly_spent)} vs ${round(weekly_budget)} limit — personal best!",
+        "timestamp": now - timedelta(days=2),
+        "badge": "⚡ Record",
+      })
+
+    # ── First Challenge ────────────────────────────
+    cur.execute("""
+      SELECT COUNT(*) FROM USER_MILESTONES WHERE USER_ID = %s
+    """, (user_id,))
+    milestone_count = cur.fetchone()[0]
+    if milestone_count <= 1:
+      milestones.append({
+        "title": "Joined Your First Challenge",
+        "description": "Welcome to the community — you're on your way!",
+        "timestamp": now - timedelta(days=14),
+        "badge": "😊 Welcome",
+      })
+
+    return milestones

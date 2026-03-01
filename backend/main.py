@@ -10,6 +10,7 @@ from snowflake_client import (get_cached_category_mappings, get_transactions_raw
   get_cached_milestone, save_milestone, save_category_mappings,
   get_dashboard_data, save_user_preferences, get_user_preferences,
   ensure_schema, get_blocked_triggers, block_trigger, update_calendar_events_from_triggers)
+from milestones import get_top_milestones, format_time
 import time
 from cortex import generate_plan, chat, generate_milestone, classify_transactions, predict_event_spend, predict_events_batch
 from google_calendar_client import get_google_calendar_events
@@ -627,3 +628,21 @@ async def get_dashboard(user: dict = Depends(get_current_user)):
   except Exception as e:
     print(f"Error in get_dashboard: {str(e)}")
     raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/milestones")
+async def get_milestones(user: dict = Depends(get_current_user)):
+    try:
+        from snowflake_client import get_user_milestones
+        raw = get_user_milestones(user['sub'])
+        top3 = get_top_milestones(raw)
+        return [
+            {
+                "title": m["title"],
+                "description": m["description"],
+                "time": format_time(m["timestamp"]),
+                "badge": m["badge"],
+            }
+            for m in top3
+        ]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

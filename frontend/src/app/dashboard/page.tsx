@@ -2,6 +2,7 @@
 
 import { cva } from "class-variance-authority";
 import Link from "next/link";
+import { MilestoneFeed } from "@/components/MilestoneFeed";
 import { useEffect, useState } from "react";
 import {
   TbAnalyze,
@@ -361,21 +362,7 @@ export default function Dashboard() {
           </div>
 
           {/* Featured Milestone Card */}
-          <div className="relative overflow-hidden rounded-xl bg-slate-900 p-8 text-white xl:col-span-1">
-            <div className="relative z-10 max-w-lg">
-              <span className="mb-4 inline-block rounded bg-green-400 px-3 py-1 text-xs font-black uppercase text-slate-900">{milestone.tag}</span>
-              <h2 className="mb-4 text-3xl font-black leading-tight">{milestone.title}</h2>
-              <p className="mb-6 text-slate-400">{milestone.description}</p>
-              <div className="flex gap-4">
-                <button className="rounded-lg bg-green-400 px-6 py-3 font-bold text-slate-900 transition-colors hover:bg-green-300">
-                  {milestone.primaryCTA}
-                </button>
-                <button className="rounded-lg border border-white/10 bg-white/10 px-6 py-3 font-bold text-white transition-all hover:bg-white/20">
-                  {milestone.secondaryCTA}
-                </button>
-              </div>
-            </div>
-          </div>
+          <MilestoneFeed />
         </section>
       </main>
     </div>
