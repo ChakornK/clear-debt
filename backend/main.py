@@ -123,14 +123,42 @@ async def generate_plan_route(req: GeneratePlanRequest):
 
 # ── CHAT ROUTES ───────────────────────────────────────
 
+
 @app.post("/api/chat")
 async def chat_route(req: ChatRequest):
     try:
         debts = get_debts(req.user_id)
+        if not debts:
+            return {"reply": "No debts found. Please add your debts first so I can give you specific advice."}
+
+        # Load existing plan if available
+        plan = {}
+        try:
+            conn = get_connection()
+            cur = conn.cursor()
+            cur.execute("""
+                SELECT PLAN_JSON FROM REPAYMENT_PLANS
+                WHERE USER_ID = %s
+                ORDER BY CREATED_AT DESC LIMIT 1
+            """, (req.user_id,))
+            row = cur.fetchone()
+            cur.close(); conn.close()
+            if row:
+                plan = json.loads(row[0])
+        except:
+            pass
+
         history = [m.dict() for m in req.history]
-        history.append({"role": "user", "content": req.message})
-        reply = chat(debts, {}, history)
+
+        try:
+            reply = chat_with_gemini(debts, plan, history, req.message)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Gemini error: {str(e)}")
+
         return {"reply": reply}
+
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
