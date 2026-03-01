@@ -3,11 +3,24 @@
 import { ActivityInputField } from "@/components/ActivityInputField";
 import { DebtInputField } from "@/components/DebtInputField";
 import { useEffect, useState, useMemo } from "react";
-import { TbArrowRight, TbArrowLeft, TbCheck, TbCalendarCheck, TbWallet, TbPigMoney, TbCreditCard, TbCoin, TbLoader, TbBrandGoogle } from "react-icons/tb";
+import {
+  TbArrowRight,
+  TbArrowLeft,
+  TbCheck,
+  TbCalendarCheck,
+  TbWallet,
+  TbPigMoney,
+  TbCreditCard,
+  TbCoin,
+  TbLoader,
+  TbBrandGoogle,
+  TbBuildingBank,
+} from "react-icons/tb";
 import AddButton from "@/components/AddButton";
 import { apiFetch } from "@/lib/api";
 import { DebtType } from "@/types/types";
 import GoogleCalendarSyncButton from "@/components/GoogleCalendarSyncButton";
+import PlaidLinkButton from "@/components/PlaidButton";
 import { useRouter } from "next/navigation";
 
 interface Debt {
@@ -30,9 +43,10 @@ interface Activity {
 
 const STEPS = [
   { id: 1, title: "Sync Schedule", icon: TbCalendarCheck },
-  { id: 2, title: "Add Debts", icon: TbCreditCard },
-  { id: 3, title: "Spending Triggers", icon: TbCoin },
-  { id: 4, title: "Income & Goals", icon: TbWallet },
+  { id: 2, title: "Connect Banks", icon: TbBuildingBank },
+  { id: 3, title: "Add Debts", icon: TbCreditCard },
+  { id: 4, title: "Spending Triggers", icon: TbCoin },
+  { id: 5, title: "Income & Goals", icon: TbWallet },
 ];
 
 export default function Setup() {
@@ -145,7 +159,8 @@ export default function Setup() {
   };
 
   const validateStep = (s: number) => {
-    if (s === 2) {
+    if (s === 3) {
+      // Debts
       for (const debt of debts) {
         if (!debt.name.trim()) return "Every debt must have a name.";
         if (debt.balance <= 0) return `Balance for "${debt.name}" must be greater than 0.`;
@@ -155,14 +170,16 @@ export default function Setup() {
       }
     }
 
-    if (s === 3) {
+    if (s === 4) {
+      // Spending Triggers
       for (const activity of activities) {
         if (!activity.name.trim()) return "Every spending trigger needs a name.";
         if (activity.estimatedCost < 0) return `Estimated cost for "${activity.name}" cannot be negative.`;
       }
     }
 
-    if (s === 4) {
+    if (s === 5) {
+      // Income & Goals
       if (monthlyIncome <= 0) return "Please enter a valid monthly net income.";
       if (monthlyLimit < 0) return "Monthly spending limit cannot be negative.";
       if (monthlyLimit > monthlyIncome) return "Spending limit cannot exceed your total income.";
@@ -193,7 +210,8 @@ export default function Setup() {
     setShowErrors(false);
 
     // Validate all steps in edit mode
-    for (let i = 2; i <= 4; i++) {
+    for (let i = 3; i <= 5; i++) {
+      // Start validation from Debts (new step 3)
       const validationError = validateStep(i);
       if (validationError) {
         setError(validationError);
@@ -307,6 +325,43 @@ export default function Setup() {
                     onClick={() => handleNextStep(2)}
                     className="group flex items-center gap-2 rounded-xl bg-slate-900 px-6 py-3 text-sm font-bold text-white transition-all hover:bg-slate-800"
                   >
+                    Continue to Bank Sync
+                    <TbArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Step 2: Plaid */}
+          {isStepVisible(2) && (
+            <div className="rounded-3xl border border-slate-100 bg-white p-8 shadow-sm">
+              <div className="mb-6 flex items-center gap-3">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-500">
+                  <TbBuildingBank className="h-7 w-7" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-black">2. Connect Your Bank Accounts</h2>
+                  <p className="text-balance text-sm text-slate-500">Securely link your accounts to track live balances and transaction data.</p>
+                </div>
+              </div>
+
+              <div className="flex justify-center py-4">
+                <PlaidLinkButton />
+              </div>
+
+              {mode === "onboarding" && (
+                <div className="mt-6 flex items-center justify-between">
+                  <button
+                    onClick={() => setStep(1)}
+                    className="flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-bold text-slate-400 transition-colors hover:text-slate-900"
+                  >
+                    <TbArrowLeft className="h-5 w-5" /> Back
+                  </button>
+                  <button
+                    onClick={() => handleNextStep(3)}
+                    className="group flex items-center gap-2 rounded-xl bg-slate-900 px-6 py-3 text-sm font-bold text-white transition-all hover:bg-slate-800"
+                  >
                     Continue to Debts
                     <TbArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
                   </button>
@@ -315,8 +370,8 @@ export default function Setup() {
             </div>
           )}
 
-          {/* Step 2: Debts */}
-          {isStepVisible(2) && (
+          {/* Step 3: Debts */}
+          {isStepVisible(3) && (
             <div className="rounded-3xl border border-slate-100 bg-white p-8 shadow-sm">
               <div className="mb-8 flex items-center justify-between">
                 <div className="flex items-center gap-3">
@@ -324,7 +379,7 @@ export default function Setup() {
                     <TbCreditCard className="h-7 w-7" />
                   </div>
                   <div>
-                    <h2 className="text-xl font-black">2. Your Outstanding Debts</h2>
+                    <h2 className="text-xl font-black">3. Your Outstanding Debts</h2>
                     <p className="text-sm text-slate-500">List all balances you wish to eliminate.</p>
                   </div>
                 </div>
@@ -342,13 +397,13 @@ export default function Setup() {
               {mode === "onboarding" && (
                 <div className="mt-12 flex items-center justify-between">
                   <button
-                    onClick={() => setStep(1)}
+                    onClick={() => setStep(2)}
                     className="flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-bold text-slate-400 transition-colors hover:text-slate-900"
                   >
                     <TbArrowLeft className="h-5 w-5" /> Back
                   </button>
                   <button
-                    onClick={() => handleNextStep(3)}
+                    onClick={() => handleNextStep(4)}
                     className="group flex items-center gap-2 rounded-xl bg-slate-900 px-8 py-3.5 font-bold text-white transition-all hover:bg-slate-800"
                   >
                     Define Triggers
@@ -359,15 +414,15 @@ export default function Setup() {
             </div>
           )}
 
-          {/* Step 3: Spending Triggers */}
-          {isStepVisible(3) && (
+          {/* Step 4: Spending Triggers */}
+          {isStepVisible(4) && (
             <div className="rounded-3xl border border-slate-100 bg-white p-8 shadow-sm">
               <div className="mb-6 flex items-center gap-3">
                 <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-50 text-amber-500">
                   <TbCoin className="h-7 w-7" />
                 </div>
                 <div>
-                  <h2 className="text-xl font-black">3. Smart Spending Triggers</h2>
+                  <h2 className="text-xl font-black">4. Smart Spending Triggers</h2>
                   <p className="text-sm text-slate-500">Estimates for activities found in your calendar.</p>
                 </div>
               </div>
@@ -391,32 +446,32 @@ export default function Setup() {
               {mode === "onboarding" && (
                 <div className="mt-12 flex items-center justify-between">
                   <button
-                    onClick={() => setStep(2)}
+                    onClick={() => setStep(3)}
                     className="flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-bold text-slate-400 transition-colors hover:text-slate-900"
                   >
                     <TbArrowLeft className="h-5 w-5" /> Back
                   </button>
                   <button
-                    onClick={() => handleNextStep(4)}
-                    className="group flex items-center gap-2 rounded-xl bg-slate-900 px-8 py-3.5 font-bold text-white transition-all hover:bg-slate-800"
+                    onClick={() => handleNextStep(5)}
+                    className="group flex items-center gap-2 rounded-xl bg-slate-900 px-6 py-3 text-sm font-bold text-white transition-all hover:bg-slate-800"
                   >
                     Set Income & Goals
-                    <TbArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-1" />
+                    <TbArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
                   </button>
                 </div>
               )}
             </div>
           )}
 
-          {/* Step 4: Income & Split */}
-          {isStepVisible(4) && (
+          {/* Step 5: Income & Split */}
+          {isStepVisible(5) && (
             <div className="rounded-3xl border border-slate-100 bg-white p-8 shadow-sm">
               <div className="mb-8 flex items-center gap-3">
                 <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-green-50 text-green-500">
                   <TbWallet className="h-7 w-7" />
                 </div>
                 <div>
-                  <h2 className="text-xl font-black">4. Income & Allocation Goal</h2>
+                  <h2 className="text-xl font-black">5. Income & Allocation Goal</h2>
                   <p className="text-sm text-slate-500">Determine how your surplus funds are distributed.</p>
                 </div>
               </div>
@@ -561,7 +616,7 @@ export default function Setup() {
               {mode === "onboarding" && (
                 <div className="mt-12 flex items-center justify-between">
                   <button
-                    onClick={() => setStep(3)}
+                    onClick={() => setStep(4)}
                     className="flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-bold text-slate-400 transition-colors hover:text-slate-900"
                   >
                     <TbArrowLeft className="h-5 w-5" /> Back
