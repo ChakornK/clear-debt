@@ -47,7 +47,7 @@ export default function GoogleCalendarSyncButton({ onSyncComplete }: GoogleCalen
       <button
         onClick={handleSync}
         disabled={loading}
-        className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold text-white transition-all active:scale-95 ${
+        className={`flex cursor-pointer items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold text-white transition-all active:scale-95 ${
           synced ? "bg-green-600" : "bg-blue-500 hover:bg-blue-600"
         } disabled:cursor-not-allowed disabled:opacity-50`}
       >
