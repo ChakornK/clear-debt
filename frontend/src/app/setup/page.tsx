@@ -9,7 +9,6 @@ import { apiFetch } from "@/lib/api";
 import { DebtType } from "@/types/types";
 import GoogleCalendarSyncButton from "@/components/GoogleCalendarSyncButton";
 import PlaidLinkButton from "@/components/PlaidButton";
-import { useRouter } from "next/navigation";
 
 interface Debt {
   id: string;
@@ -191,8 +190,6 @@ export default function Setup() {
     setStep(next);
   };
 
-  const router = useRouter();
-
   const onSave = async () => {
     setError("");
     setShowErrors(false);
@@ -231,7 +228,7 @@ export default function Setup() {
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
       if (mode === "onboarding") {
-        router.push("/dashboard");
+        window.location.href = "/dashboard";
       }
     } catch (err: any) {
       setError("Failed to save. Please try again.");
