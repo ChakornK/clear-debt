@@ -683,7 +683,89 @@ async def get_dashboard(user: dict = Depends(get_current_user)):
   except Exception as e:
     print(f"Error in get_dashboard: {str(e)}")
     raise HTTPException(status_code=500, detail=str(e))
+@app.get("/api/nudges")
+async def get_nudges(user: dict = Depends(get_current_user)):
+    try:
+        user_id = user['sub']
+        raw_txns = get_transactions_raw(user_id)
+        cat_map  = get_cached_category_mappings()
 
+        from collections import defaultdict
+        from datetime import datetime, timedelta, timezone
+
+        nudges = []
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+
+        cutoff_30 = now - timedelta(days=30)
+        cutoff_60 = now - timedelta(days=60)
+
+        # ── Weekend vs weekday spending ──────────────────
+        weekend_total, weekend_days = 0.0, 0
+        weekday_total, weekday_days = 0.0, 0
+
+        for t in raw_txns:
+            if t.get("is_income"): continue
+            d = datetime.fromisoformat(t["date"])
+            if (now - d).days > 30: continue
+            if d.weekday() >= 5:
+                weekend_total += t["amount"]; weekend_days += 1
+            else:
+                weekday_total += t["amount"]; weekday_days += 1
+
+        if weekend_days > 0 and weekday_days > 0:
+            avg_weekend = weekend_total / weekend_days
+            avg_weekday = weekday_total / weekday_days
+            if avg_weekend > avg_weekday * 1.2:
+                pct = round((avg_weekend - avg_weekday) / avg_weekday * 100)
+                nudges.append({"type": "warning", "message": f"You spend {pct}% more on weekends — heads up this Saturday."})
+
+        # ── Fastest growing category (rolling 30 vs 30-60 days) ──
+        this_period = defaultdict(float)
+        last_period = defaultdict(float)
+
+        for t in raw_txns:
+            if t.get("is_income"): continue
+            d = datetime.fromisoformat(t["date"])
+            bucket = cat_map.get(t["category"], "Other")
+            if d >= cutoff_30:   this_period[bucket] += t["amount"]
+            elif d >= cutoff_60: last_period[bucket] += t["amount"]
+
+        biggest_growth, biggest_cat, biggest_pct = 0.0, None, 0
+        for cat, amt in this_period.items():
+            prev = last_period.get(cat, 0)
+            if prev > 0:
+                growth = (amt - prev) / prev * 100
+                if growth > biggest_growth:
+                    biggest_growth, biggest_cat, biggest_pct = growth, cat, round(growth)
+
+        if biggest_cat and biggest_pct > 10:
+            nudges.append({"type": "insight", "message": f"{biggest_cat} is your fastest-growing category — up {biggest_pct}% this month."})
+
+        # ── Category that dropped (win) ──────────────────
+        biggest_drop, drop_cat, drop_amt = 0.0, None, 0
+        for cat, prev in last_period.items():
+            curr = this_period.get(cat, 0)
+            if prev > 0 and curr < prev:
+                drop = prev - curr
+                if drop > biggest_drop:
+                    biggest_drop, drop_cat, drop_amt = drop, cat, round(drop)
+
+        if drop_cat:
+            nudges.append({"type": "win", "message": f"Your {drop_cat} spend dropped ${drop_amt} vs last month. Great work!"})
+
+        # ── Tip: biggest single category this period ─────
+        if this_period:
+            top_cat = max(this_period, key=this_period.__getitem__)
+            nudges.append({"type": "tip", "message": f"Your biggest spend this month is {top_cat} — try setting a weekly cap to stay on track."})
+
+        return nudges[:3] if nudges else [
+            {"type": "tip", "message": "Keep logging your spending to unlock personalized nudges!"}
+        ]
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    
+    
 @app.get("/api/milestones")
 async def get_milestones(user: dict = Depends(get_current_user)):
     try:
