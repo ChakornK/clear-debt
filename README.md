@@ -103,4 +103,6 @@ yarn build
 yarn start
 ```
 
+And navigate to https://localhost:3000
+
 ---
