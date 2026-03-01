@@ -87,7 +87,7 @@ export default function Dashboard() {
 
   return (
     <div className="relative flex min-h-screen w-full flex-col overflow-x-hidden bg-white text-slate-900">
-      <main className="flex flex-1 flex-col gap-6 p-6 xl:px-20 xl:py-8">
+      <main className="flex flex-1 flex-col gap-6 p-6 xl:p-10">
         {/* Top Summary Section */}
         <section className="grid grid-cols-1 gap-6 xl:grid-cols-3">
           <div className="flex items-center justify-between rounded-xl border border-green-200 bg-green-50 p-6 shadow-sm">

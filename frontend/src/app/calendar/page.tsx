@@ -4,6 +4,7 @@ import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { TbChevronLeft, TbChevronRight, TbRefresh, TbFileText, TbCreditCard, TbPin, TbReportMoney, TbCalendarEvent, TbList, TbPlus } from "react-icons/tb";
 import type { IconType } from "react-icons";
+import Modal from "@/components/Modal";
 
 type EventType = "subscription" | "bill" | "expense" | "default";
 
@@ -44,6 +45,7 @@ interface PopoverProps {
   month: number;
   day: number;
   onClose: () => void;
+  onAddExpense: (date: string) => void;
 }
 
 // TODO: replace with real data
@@ -121,7 +123,86 @@ function calcPopoverPosition(cellRect: DOMRect, popoverHeight: number): PopoverP
   return { top, left, arrowLeft, arrowSide: placeBelow ? "top" : "bottom" };
 }
 
-function EventPopover({ anchor, events, year, month, day, onClose }: PopoverProps) {
+interface AddExpenseFormProps {
+  date: string;
+  onChange: (fields: AddExpenseFields) => void;
+}
+
+interface AddExpenseFields {
+  label: string;
+  amount: string;
+  type: Exclude<EventType, "default">;
+  date: string;
+}
+
+const EXPENSE_TYPES: Exclude<EventType, "default">[] = ["expense", "bill", "subscription"];
+
+function AddExpenseForm({ date, onChange }: AddExpenseFormProps) {
+  const [fields, setFields] = useState<AddExpenseFields>({ label: "", amount: "", type: "expense", date });
+
+  function update<K extends keyof AddExpenseFields>(key: K, value: AddExpenseFields[K]): void {
+    const next = { ...fields, [key]: value };
+    setFields(next);
+    onChange(next);
+  }
+
+  const inputClass =
+    "w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition-colors focus:border-green-400 focus:ring-2 focus:ring-green-100";
+  const labelClass = "mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500";
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <label className={labelClass}>Date</label>
+        <input type="date" value={fields.date} onChange={(e) => update("date", e.target.value)} className={inputClass} />
+      </div>
+      <div>
+        <label className={labelClass}>Label</label>
+        <input type="text" placeholder="e.g. Grocery Run" value={fields.label} onChange={(e) => update("label", e.target.value)} className={inputClass} />
+      </div>
+      <div>
+        <label className={labelClass}>Amount</label>
+        <div className="relative">
+          <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-sm text-slate-400">$</span>
+          <input
+            type="number"
+            min="0"
+            step="0.01"
+            placeholder="0.00"
+            value={(+fields.amount).toFixed(2)}
+            onChange={(e) => update("amount", e.target.value)}
+            className={`${inputClass}${" "}pl-7`}
+          />
+        </div>
+      </div>
+      <div>
+        <label className={labelClass}>Type</label>
+        <div className="flex gap-2">
+          {EXPENSE_TYPES.map((t) => {
+            const cfg = TYPE_CONFIG[t];
+            const isActive = fields.type === t;
+            return (
+              <button
+                key={t}
+                type="button"
+                onClick={() => update("type", t)}
+                className={[
+                  "flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-semibold capitalize transition-colors",
+                  isActive ? `${cfg.badge} border-transparent` : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50",
+                ].join(" ")}
+              >
+                <cfg.Icon className="h-3.5 w-3.5" />
+                {t}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function EventPopover({ anchor, events, year, month, day, onClose, onAddExpense }: PopoverProps) {
   const popoverRef = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<PopoverPosition | null>(null);
 
@@ -216,7 +297,13 @@ function EventPopover({ anchor, events, year, month, day, onClose }: PopoverProp
         })}
       </div>
 
-      <button className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-green-500 py-2.5 text-sm font-bold text-white transition-colors hover:bg-green-600">
+      <button
+        onClick={() => {
+          onAddExpense(toDateStr(year, month, day));
+          onClose();
+        }}
+        className="mt-4 flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-green-500 py-2.5 text-sm font-bold text-white transition-colors hover:bg-green-600"
+      >
         <TbPlus className="h-4 w-4" />
         Add Expense
       </button>
@@ -229,6 +316,11 @@ export default function Calendar() {
   const [year, setYear] = useState<number>(new Date().getFullYear());
   const [month, setMonth] = useState<number>(new Date().getMonth() + 1);
   const [popover, setPopover] = useState<PopoverState | null>(null);
+
+  // State for the Add Expense modal
+  const [modalOpen, setModalOpen] = useState<boolean>(false);
+  const [modalDate, setModalDate] = useState<string>("");
+  const [pendingExpense, setPendingExpense] = useState<AddExpenseFields | null>(null);
 
   const eventMap = useMemo(() => buildEventMap(data.events), []);
 
@@ -255,6 +347,23 @@ export default function Calendar() {
       return;
     }
     setPopover({ day, anchor: e.currentTarget });
+  }
+
+  // Opens the modal pre-filled with the clicked day's date
+  function handleAddExpense(date: string): void {
+    setModalDate(date);
+    setPendingExpense(null);
+    setModalOpen(true);
+  }
+
+  function handleModalConfirm(): void {
+    // TODO: persist pendingExpense to data source
+    console.log("New expense:", pendingExpense);
+    setModalOpen(false);
+  }
+
+  function handleModalCancel(): void {
+    setModalOpen(false);
   }
 
   const startWeekday = firstWeekday(year, month);
@@ -389,7 +498,29 @@ export default function Calendar() {
         </div>
       </main>
 
-      {popover && <EventPopover anchor={popover.anchor} events={selectedEvents} year={year} month={month} day={popover.day} onClose={closePopover} />}
+      {popover && (
+        <EventPopover
+          anchor={popover.anchor}
+          events={selectedEvents}
+          year={year}
+          month={month}
+          day={popover.day}
+          onClose={closePopover}
+          onAddExpense={handleAddExpense}
+        />
+      )}
+
+      <Modal
+        isOpen={modalOpen}
+        onClose={() => setModalOpen(false)}
+        title="Add Expense"
+        confirmText="Add Expense"
+        cancelText="Cancel"
+        onConfirm={handleModalConfirm}
+        onCancel={handleModalCancel}
+      >
+        <AddExpenseForm date={modalDate} onChange={(fields) => setPendingExpense(fields)} />
+      </Modal>
     </>
   );
 }
