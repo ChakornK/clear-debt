@@ -25,19 +25,27 @@ All data unified in Snowflake as a single financial profile
 Reads 90 days of transaction history and surfaces patterns — average monthly spend by category, recurring subscriptions, and seasonal spikes. This output feeds directly into the AI's reasoning when generating your repayment plan.
 
 ### 3. Calendar Intelligence Layer
-A monthly calendar overlaying debt due dates, paydays, and user-flagged events (tax refund, big expense, bonus). Click any day to add an event. All calendar data gets sent to the AI as context when generating your plan.
+Overlays debt due dates, income events, and planned expenses on a monthly calendar
+Detects cash flow conflicts when debt payments and large expenses fall in the same week
+Calculates the optimal window to make extra debt payments (after income arrives, before next due date)
+Flags months where total outgoing payments exceed expected income
 
 ### 4. AI Event Spending Predictor 
 The core innovation. When you add a calendar event like "Birthday Dinner Downtown" or "Weekend Trip to Niagara Falls", Gemini AI instantly predicts the likely spend, category, and itemized breakdown — before you even think about it.
 
-### 5. AI Repayment Plan
-Bundles your debt snapshot, calendar events, and spending behavior into a structured prompt for Gemini AI. Returns a personalized repayment plan showing avalanche vs snowball vs AI-recommended hybrid strategies side by side, with total interest saved and payoff date for each.
+### 5. AI Repayment Plan (Snowflake Cortex)
+Compares Debt Avalanche (highest APR first) vs Debt Snowball (smallest balance first)
+Generates a personalized hybrid strategy using Snowflake Cortex (Mistral Large 2)
+Factors in calendar events and spending behavior — not just interest rates
+Shows total interest saved, payoff date, and month-by-month balance breakdown
 
 ### 6. Month-by-Month Timeline
 An animated chart showing how your balances shrink over time under the recommended plan. Each bar represents one month, each color segment represents one debt account.
 
-### 7. AI Chat
-Persistent chat grounded in your actual debt data. Every message re-injects your full financial context so answers are specific to your situation. Ask hypotheticals like "What if I got a $3k bonus?" or "Should I consolidate?"
+### 7. AI Financial Chat (Gemini)
+Context-aware chat grounded in the user's actual debt data and repayment plan
+Handles hypotheticals: "What if I got a $3k bonus?" or "Should I consolidate?"
+Full conversation history re-injected on every message for continuity
 
 ### 8. Dashboard
 A real-time overview of debt progress, weekly spending analysis, daily cost distribution, spending categories, upcoming calendar events with predicted costs, and milestone alerts.
