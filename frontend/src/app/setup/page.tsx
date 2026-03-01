@@ -77,10 +77,9 @@ export default function Setup() {
     setDebts(prev => prev.filter(d => d.id !== id));
   };
 
-  const onDebtFieldChange = (id: string, field: string, value: string | number) => {
-    setDebts(prev =>
-      prev.map(d => d.id === id ? { ...d, [field]: value } : d)
-    );
+  const onDebtFieldChange = (id: string, field: string, value: string | number | DebtType) => {
+  setDebts(prev =>
+    prev.map(d => d.id === id ? { ...d, [field]: value } : d));
   };
 
   // ── ACTIVITY HANDLERS ──────────────────────────────

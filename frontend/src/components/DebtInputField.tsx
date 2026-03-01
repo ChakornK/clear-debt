@@ -1,21 +1,12 @@
-import { DebtType } from "@/types/types";
+import { Debt, DebtType } from "@/types/types";
 import { TbSquareRoundedXFilled } from "react-icons/tb";
 import { MouseEventHandler } from 'react';
 
 interface DebtInputFieldProps {
   id: string;
-  debt: {
-    id: string;
-    name: string;
-    type: string;
-    balance: number;
-    apr: number;
-    minimum: number;
-    due: number;
-    source: string;
-  };
+  debt: Debt; 
   onRemoveClick: MouseEventHandler<HTMLButtonElement>;
-  onFieldChange: (id: string, field: string, value: string | number) => void;
+  onFieldChange: (id: string, field: string, value: string | number | DebtType) => void;
 }
 
 export const DebtInputField = ({ id, debt, onRemoveClick, onFieldChange }: DebtInputFieldProps) => {
@@ -41,11 +32,11 @@ export const DebtInputField = ({ id, debt, onRemoveClick, onFieldChange }: DebtI
             <p className="text-sm font-semibold ml-1">Debt Type</p>
             <select
               value={debt.type}
-              onChange={(e) => onFieldChange(id, 'type', e.target.value)}
+              onChange={(e) => onFieldChange(id, 'type', Number(e.target.value) as DebtType)}
               className="block appearance-none w-full border border-green-200 hover:border-green-400 px-4 py-2 pr-8 rounded shadow leading-tight focus:outline-none focus:shadow-outline mt-1"
             >
               {debtTypes.map((dt, i) => (
-                <option key={i} value={dt}>{dt}</option>
+                <option key={i} value={i}>{dt}</option>
               ))}
             </select>
           </div>
