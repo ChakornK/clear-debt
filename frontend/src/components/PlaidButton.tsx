@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { usePlaidLink } from "react-plaid-link";
 import { TbBuildingBank, TbLoader2 } from "react-icons/tb";
+import { apiFetch } from "@/lib/api";
 
 interface LinkButtonProps {
   linkToken: string;
@@ -15,10 +16,8 @@ function LinkButton({ linkToken }: LinkButtonProps) {
   const onSuccess = useCallback(async (public_token: string) => {
     setLoading(true);
     try {
-      await fetch(process.env.NEXT_PUBLIC_API_URL + "/api/plaid/exchange", {
+      await apiFetch("/api/plaid/exchange", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
         body: JSON.stringify({ public_token }),
       });
       setDidLink(true);
@@ -58,10 +57,7 @@ export default function PlaidLinkButton() {
   useEffect(() => {
     async function generateToken(): Promise<void> {
       try {
-        const response = await fetch(process.env.NEXT_PUBLIC_API_URL + "/api/plaid/link-token", {
-          method: "GET",
-          credentials: "include",
-        });
+        const response = await apiFetch("/api/plaid/link-token");
 
         if (response.status === 401) {
           setError("Please login first to link your bank account.");

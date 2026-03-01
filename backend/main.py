@@ -127,9 +127,9 @@ async def predict_event_cost(req: PredictEventRequest, user: dict = Depends(get_
 async def sync_google_calendar(request: Request, user: dict = Depends(get_current_user)):
     try:
         user_id = user['sub']
-        access_token = request.session.get('access_token')
+        access_token = user.get('access_token')
         if not access_token:
-             raise HTTPException(status_code=401, detail="Google authentication required. Please log in again.")
+             raise HTTPException(status_code=401, detail="Google access token not found. Please log in again.")
              
         # 1. Fetch events
         events = await get_google_calendar_events(access_token, days=30)

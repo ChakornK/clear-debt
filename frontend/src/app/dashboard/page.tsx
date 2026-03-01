@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { TbAnalyze, TbCalendarMonth, TbChartBar, TbCoin, TbLoader } from "react-icons/tb";
 import GoogleCalendarSyncButton from "@/components/GoogleCalendarSyncButton";
 import PlaidLinkButton from "@/components/PlaidButton";
+import { apiFetch, setAuthToken } from "@/lib/api";
 
 interface DashboardData {
   debtProgress: {
@@ -59,10 +60,7 @@ export default function Dashboard() {
 
   const fetchDashboard = async () => {
     try {
-      const res = await fetch(process.env.NEXT_PUBLIC_API_URL + "/api/dashboard", {
-        method: "GET",
-        credentials: "include",
-      });
+      const res = await apiFetch("/api/dashboard");
       if (res.ok) {
         const json = await res.json();
         setData(json);

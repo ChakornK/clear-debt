@@ -1,9 +1,8 @@
 from authlib.integrations.starlette_client import OAuth
-from fastapi import APIRouter, Request, HTTPException
+from fastapi import APIRouter, Request, HTTPException, Depends
 from starlette.config import Config
 from starlette.responses import RedirectResponse
-import os
-from models import User
+import os, uuid
 
 # Load config from .env or environment variables
 config = Config(".env")
@@ -19,6 +18,25 @@ oauth.register(
     }
 )
 
+# In-memory session store: {token: {"user": ..., "access_token": ...}}
+SESSION_CACHE = {}
+
+async def get_current_user(request: Request):
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Missing or invalid token")
+    
+    token = auth_header.split(" ")[1]
+    session = SESSION_CACHE.get(token)
+    
+    if not session:
+        raise HTTPException(status_code=401, detail="Session expired or invalid")
+    
+    # Attach access_token to the user dict for ease of use in other routes
+    user = session['user'].copy()
+    user['access_token'] = session['access_token']
+    return user
+
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 @router.get("/login")
@@ -29,31 +47,36 @@ async def login(request: Request):
 @router.get("/callback", name="auth_callback")
 async def auth_callback(request: Request):
     try:
-        token = await oauth.google.authorize_access_token(request)
-        user_info = token.get('userinfo')
+        token_data = await oauth.google.authorize_access_token(request)
+        user_info = token_data.get('userinfo')
         if not user_info:
             raise HTTPException(status_code=400, detail="Failed to fetch user info")
         
-        # For session-based auth:
-        request.session['user'] = user_info
-        request.session['access_token'] = token.get('access_token')
+        # Generate our own session token
+        session_token = str(uuid.uuid4())
+        SESSION_CACHE[session_token] = {
+            'user': user_info,
+            'access_token': token_data.get('access_token')
+        }
 
         frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
-        return RedirectResponse(url=f"{frontend_url}/dashboard")
+        # Pass the token to the frontend via query param for the first time
+        return RedirectResponse(url=f"{frontend_url}/dashboard?token={session_token}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/logout")
 async def logout(request: Request):
-    request.session.pop('user', None)
+    auth_header = request.headers.get("Authorization")
+    if auth_header and auth_header.startswith("Bearer "):
+        token = auth_header.split(" ")[1]
+        SESSION_CACHE.pop(token, None)
+    
     frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
     return RedirectResponse(url=frontend_url)
 
 @router.get("/me")
-async def get_me(request: Request):
-    user = request.session.get('user')
-    if not user:
-        raise HTTPException(status_code=401, detail="Not authenticated")
+async def get_me(user: dict = Depends(get_current_user)):
     return {
         'id': user['sub'],
         'email': user['email'],
@@ -62,8 +85,3 @@ async def get_me(request: Request):
         'picture': user['picture']
     }
 
-async def get_current_user(request: Request):
-    user = request.session.get('user')
-    if not user:
-        raise HTTPException(status_code=401, detail="Not authenticated")
-    return user

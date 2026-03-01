@@ -3,8 +3,9 @@
 import { GlobalContext } from "@/contexts/GlobalContext";
 import { cva } from "class-variance-authority";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useContext, useEffect } from "react";
+import { apiFetch, clearAuthToken, setAuthToken } from "@/lib/api";
 import {
   TbAdjustments,
   TbAdjustmentsFilled,
@@ -18,25 +19,25 @@ import {
 const routes = [
   {
     name: "Dashboard",
-    href: "/dashboard",
+    path: "/dashboard",
     icon: TbLayoutDashboard,
-    iconFilled: TbLayoutDashboardFilled,
+    iconSelected: TbLayoutDashboardFilled,
   },
   {
     name: "Calendar",
-    href: "/calendar",
+    path: "/calendar",
     icon: TbCalendarMonth,
-    iconFilled: TbCalendarMonthFilled,
+    iconSelected: TbCalendarMonthFilled,
   },
   {
     name: "Setup",
-    href: "/setup",
+    path: "/setup",
     icon: TbAdjustments,
-    iconFilled: TbAdjustmentsFilled,
+    iconSelected: TbAdjustmentsFilled,
   },
 ];
 
-const navLink = cva("flex items-center gap-2 rounded-md p-2", {
+const navLink = cva("flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition", {
   variants: {
     intent: {
       selected: "bg-green-600/10 text-green-900",
@@ -50,15 +51,39 @@ export const Navbar = () => {
   const { userData, setUserData } = useContext(GlobalContext);
 
   const pathname = usePathname();
+  const searchParams = useSearchParams();
 
   useEffect(() => {
-    fetch(process.env.NEXT_PUBLIC_API_URL + "/api/auth/me", {
-      method: "GET",
-      credentials: "include",
-    })
-      .then((res) => res.json())
-      .then((data) => setUserData(data));
-  }, []);
+    // URL token cleanup (initial login redirect)
+    const urlToken = searchParams.get("token");
+    if (urlToken) {
+      // Clean URL after current tick to ensure apiFetch has read it
+      setTimeout(() => {
+        const url = new URL(window.location.href);
+        url.searchParams.delete("token");
+        window.history.replaceState({}, "", url.toString());
+      }, 500);
+    }
+
+    apiFetch("/api/auth/me")
+      .then((res) => {
+        if (!res.ok) throw new Error("Unauthorized");
+        return res.json();
+      })
+      .then((data) => setUserData(data))
+      .catch((err) => {
+        console.error("Failed to fetch user data", err);
+      });
+  }, [searchParams]);
+
+  const handleLogout = async () => {
+    try {
+      await apiFetch("/api/auth/logout");
+    } finally {
+      clearAuthToken();
+      window.location.href = "/";
+    }
+  };
 
   return (
     <nav className="w-2xs flex shrink-0 flex-col items-stretch gap-2 bg-neutral-100 p-4 text-slate-900">
@@ -73,19 +98,19 @@ export const Navbar = () => {
       </div>
 
       {routes.map((route) => (
-        <Link key={route.name} href={route.href} className={navLink({ intent: pathname === route.href ? "selected" : "unselected" })}>
-          {pathname === route.href ?
-            <route.iconFilled />
+        <Link key={route.name} href={route.path} className={navLink({ intent: pathname === route.path ? "selected" : "unselected" })}>
+          {pathname === route.path ?
+            <route.iconSelected />
           : <route.icon />}
           <p>{route.name}</p>
         </Link>
       ))}
       <div className="grow"></div>
 
-      <Link href={process.env.NEXT_PUBLIC_API_URL + "/api/auth/logout"} className={navLink({ intent: "danger" })}>
+      <button onClick={handleLogout} className={navLink({ intent: "danger" })}>
         <TbLogout />
         <p>Logout</p>
-      </Link>
+      </button>
     </nav>
   );
 };

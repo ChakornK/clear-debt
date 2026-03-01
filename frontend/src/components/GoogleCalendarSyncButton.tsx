@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { TbRefresh, TbLoader2, TbCheck } from "react-icons/tb";
+import { apiFetch } from "@/lib/api";
 
 interface GoogleCalendarSyncButtonProps {
   onSyncComplete?: () => void;
@@ -17,9 +18,8 @@ export default function GoogleCalendarSyncButton({ onSyncComplete }: GoogleCalen
     setError(null);
     setSynced(false);
     try {
-      const res = await fetch(process.env.NEXT_PUBLIC_API_URL + "/api/google-calendar/sync", {
+      const res = await apiFetch("/api/google-calendar/sync", {
         method: "POST",
-        credentials: "include",
       });
 
       if (res.ok) {
