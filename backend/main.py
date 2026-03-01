@@ -15,8 +15,6 @@ from math_engine import calc_all_strategies
 from pydantic import BaseModel
 from typing import List
 from datetime import datetime, timedelta
-from fastapi import File, UploadFile
-import base64
 import random, os, json
 from auth import router as auth_router, get_current_user
 
@@ -382,31 +380,6 @@ async def get_dashboard(user: dict = Depends(get_current_user)):
 
         return response_payload
 
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-    
-@app.post("/api/receipt/scan")
-async def scan_receipt(user_id: str, file: UploadFile = File(...)):
-    try:
-        # Read image bytes and convert to base64
-        image_bytes = await file.read()
-        image_b64 = base64.b64encode(image_bytes).decode('utf-8')
-        mime_type = file.content_type  # e.g. image/jpeg, image/png
-
-        # Send to Gemini
-        from gemini_client import scan_receipt_image
-        transaction = scan_receipt_image(image_b64, mime_type)
-
-        if not transaction:
-            raise HTTPException(status_code=400, detail="Could not extract transaction from receipt")
-
-        # Log it as a transaction in Snowflake
-        save_transactions(user_id, [transaction])
-
-        return {"success": True, "transaction": transaction}
-
-    except HTTPException:
-        raise
     except Exception as e:
         print(f"Error in get_dashboard: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
