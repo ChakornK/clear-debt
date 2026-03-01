@@ -28,17 +28,18 @@ const routes = [
     iconSelected: TbLayoutDashboardFilled,
   },
   {
-    name: "Chat",
-    path: "/chat",
-    icon: TbMessageCircle,
-    iconSelected: TbMessageCircleFilled,
-  },
-  {
     name: "Calendar",
     path: "/calendar",
     icon: TbCalendarMonth,
     iconSelected: TbCalendarMonthFilled,
   },
+  {
+    name: "Chat",
+    path: "/chat",
+    icon: TbMessageCircle,
+    iconSelected: TbMessageCircleFilled,
+  },
+
   {
     name: "Setup",
     path: "/setup",
