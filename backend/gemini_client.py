@@ -7,7 +7,7 @@ load_dotenv()
 genai.configure(api_key=os.getenv('GEMINI_API_KEY'))
 
 def chat_with_gemini(debts, plan, history, user_message):
-    model = genai.GenerativeModel('gemini-1.5-flash')
+    model = genai.GenerativeModel('gemma-3-27b-it')
 
     # Build debt context
     debt_summary = "\n".join([
@@ -46,7 +46,8 @@ INSTRUCTIONS:
 - Be concise, specific, and actionable
 - If asked about consolidation, compare the blended rate vs current weighted average APR
 - If asked about a bonus or windfall, recommend which debt to target first based on their profile
-- Never give generic advice — always tie it back to their specific debts"""
+- Never give generic advice — always tie it back to their specific debts
+- BE EXTREMELY CONCISE"""
 
     # Build conversation history for Gemini
     gemini_history = []
