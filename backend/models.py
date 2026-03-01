@@ -23,6 +23,7 @@ class CalendarEvent(BaseModel):
     label: str
     amount: float
     is_income: Optional[bool] = False
+    source: Optional[str] = None
 
 class ChatMessage(BaseModel):
     role: str
@@ -57,3 +58,5 @@ class DashboardResponse(BaseModel):
 class PredictEventRequest(BaseModel):
     label: str
     date: str
+
+    

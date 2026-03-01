@@ -184,6 +184,19 @@ def get_calendar_events(user_id, future_only=False):
     cur.execute(query, (user_id,))
     return [{'date': str(r[0]), 'type': r[1], 'label': r[2], 'amount': r[3]} for r in cur.fetchall()]
 
+def delete_calendar_event(user_id, date, label):
+    with get_connection() as conn:
+        cur = conn.cursor()
+        clean_date = date.split("T")[0]
+        cur.execute("""
+            DELETE FROM CALENDAR_EVENTS 
+            WHERE USER_ID = %s 
+            AND EVENT_DATE = %s 
+            AND LABEL = %s
+        """, (user_id, clean_date, label))
+        conn.commit()
+        return cur.rowcount  
+
 def save_plan(user_id, plan):
   with get_connection() as conn:
     cur = conn.cursor()

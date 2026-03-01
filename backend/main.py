@@ -6,7 +6,7 @@ from models import (ExchangeTokenRequest, SaveDebtsRequest, GeneratePlanRequest,
 from plaid_client import create_link_token, exchange_public_token, get_accounts, get_transactions, get_liabilities
 from snowflake_client import (get_cached_category_mappings, get_transactions_raw, save_access_token, get_access_token,
   save_debts, get_debts, save_transactions, get_spending_summary,
-  save_calendar_events, get_calendar_events, save_plan, get_connection,
+  save_calendar_events, get_calendar_events, delete_calendar_event, save_plan, get_connection,
   get_cached_milestone, save_milestone, save_category_mappings,
   get_dashboard_data, save_user_preferences, get_user_preferences)
 import time
@@ -176,18 +176,17 @@ def get_events(user: dict = Depends(get_current_user)):
   try:
     user_id = user['sub']
 
-    # Fetch DB data and category map in parallel
     with ThreadPoolExecutor(max_workers=3) as ex:
       f_manual = ex.submit(get_calendar_events, user_id)
       f_txns   = ex.submit(get_transactions_raw, user_id)
       f_prefs  = ex.submit(get_user_preferences, user_id)
 
     manual_events = f_manual.result()
-    txns      = f_txns.result()
-    prefs     = f_prefs.result()
-    cat_map     = get_cached_category_mappings()
+    txns          = f_txns.result()
+    prefs         = f_prefs.result()
+    cat_map       = get_cached_category_mappings()
 
-    # Generate income events
+    # Income events
     income_events = []
     if prefs and prefs.get('monthly_income', 0) > 0:
       now = datetime.now()
@@ -199,9 +198,10 @@ def get_events(user: dict = Depends(get_current_user)):
             "label": "Monthly Income",
             "amount": float(prefs['monthly_income']),
             "is_income": True,
+            "source": "generated",  # ← tag it
           })
 
-    # Classify any unknown categories in one batch call
+    # Classify unknown categories
     unknown = list({t['category'] for t in txns if t['category'] not in cat_map})
     if unknown:
       new_mappings = classify_transactions(unknown)
@@ -215,15 +215,19 @@ def get_events(user: dict = Depends(get_current_user)):
         "label": t['description'],
         "amount": float(t['amount']),
         "is_income": t.get('is_income', False),
+        "source": "transaction",  # ← tag it
       }
       for t in txns
     ]
 
-    return {"events": manual_events + final_txn_events + income_events}
+    # Tag manual events
+    tagged_manual = [{**e, "source": "manual"} for e in manual_events]
+
+    return {"events": tagged_manual + final_txn_events + income_events}
   except Exception as e:
     print(f"Error in get_events: {e}")
     raise HTTPException(status_code=500, detail=str(e))
-
+  
 @app.post("/api/calendar")
 def save_events(events: List[CalendarEvent], user: dict = Depends(get_current_user)):
   try:
@@ -231,6 +235,20 @@ def save_events(events: List[CalendarEvent], user: dict = Depends(get_current_us
     return {"saved": len(events)}
   except Exception as e:
     raise HTTPException(status_code=500, detail=str(e))
+
+class DeleteEventRequest(BaseModel):
+    date: str
+    label: str
+
+@app.post("/api/calendar/delete")
+def delete_event(req: DeleteEventRequest, user: dict = Depends(get_current_user)):
+    try:
+        user_id = user['sub']
+        deleted = delete_calendar_event(user_id, req.date, req.label)
+        _invalidate_dashboard(user_id)
+        return {"deleted": deleted > 0}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/calendar/predict")
 async def predict_event_cost(req: PredictEventRequest, user: dict = Depends(get_current_user)):

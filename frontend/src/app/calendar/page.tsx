@@ -17,6 +17,7 @@ import {
   TbCalendarEvent,
   TbPlus,
   TbList,
+  TbTrash,
 } from "react-icons/tb";
 import type { IconType } from "react-icons";
 import Modal from "@/components/Modal";
@@ -40,6 +41,7 @@ interface CalendarEvent {
   label: string;
   amount: number;
   is_income?: boolean;
+  source?: "manual" | "transaction" | "generated"; 
 }
 
 interface TypeConfigEntry {
@@ -69,23 +71,24 @@ interface PopoverProps {
   day: number;
   onClose: () => void;
   onAddExpense: (date: string) => void;
+  onEditEvent: (event: CalendarEvent) => void;
+  onDeleteEvent: (event: CalendarEvent) => void;
 }
 
 const DAYS_OF_WEEK = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
-
 const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"] as const;
 
 const TYPE_CONFIG: Record<string, TypeConfigEntry> = {
-  "Housing": { dot: "bg-emerald-400", Icon: TbHome, badge: "bg-emerald-100 text-emerald-700", iconClass: "text-emerald-500" },
-  "Food & Dining": { dot: "bg-orange-400", Icon: TbToolsKitchen2, badge: "bg-orange-100 text-orange-700", iconClass: "text-orange-500" },
-  "Transportation": { dot: "bg-blue-400", Icon: TbCar, badge: "bg-blue-100 text-blue-700", iconClass: "text-blue-500" },
-  "Healthcare": { dot: "bg-rose-400", Icon: TbBuildingHospital, badge: "bg-rose-100 text-rose-700", iconClass: "text-rose-500" },
-  "Entertainment": { dot: "bg-purple-400", Icon: TbDeviceTv, badge: "bg-purple-100 text-purple-700", iconClass: "text-purple-500" },
-  "Shopping": { dot: "bg-amber-400", Icon: TbShoppingBag, badge: "bg-amber-100 text-amber-700", iconClass: "text-amber-500" },
-  "Debt Payments": { dot: "bg-red-400", Icon: TbCreditCard, badge: "bg-red-100 text-red-700", iconClass: "text-red-500" },
-  "Income": { dot: "bg-green-400", Icon: TbReportMoney, badge: "bg-green-100 text-green-700", iconClass: "text-green-500" },
-  "Other": { dot: "bg-slate-400", Icon: TbQuestionMark, badge: "bg-slate-100 text-slate-700", iconClass: "text-slate-400" },
-  "default": { dot: "bg-slate-400", Icon: TbQuestionMark, badge: "bg-slate-100 text-slate-700", iconClass: "text-slate-400" },
+  "Housing":        { dot: "bg-emerald-400", Icon: TbHome,             badge: "bg-emerald-100 text-emerald-700", iconClass: "text-emerald-500" },
+  "Food & Dining":  { dot: "bg-orange-400",  Icon: TbToolsKitchen2,    badge: "bg-orange-100 text-orange-700",   iconClass: "text-orange-500"  },
+  "Transportation": { dot: "bg-blue-400",    Icon: TbCar,              badge: "bg-blue-100 text-blue-700",       iconClass: "text-blue-500"    },
+  "Healthcare":     { dot: "bg-rose-400",    Icon: TbBuildingHospital, badge: "bg-rose-100 text-rose-700",       iconClass: "text-rose-500"    },
+  "Entertainment":  { dot: "bg-purple-400",  Icon: TbDeviceTv,         badge: "bg-purple-100 text-purple-700",   iconClass: "text-purple-500"  },
+  "Shopping":       { dot: "bg-amber-400",   Icon: TbShoppingBag,      badge: "bg-amber-100 text-amber-700",     iconClass: "text-amber-500"   },
+  "Debt Payments":  { dot: "bg-red-400",     Icon: TbCreditCard,       badge: "bg-red-100 text-red-700",         iconClass: "text-red-500"     },
+  "Income":         { dot: "bg-green-400",   Icon: TbReportMoney,      badge: "bg-green-100 text-green-700",     iconClass: "text-green-500"   },
+  "Other":          { dot: "bg-slate-400",   Icon: TbQuestionMark,     badge: "bg-slate-100 text-slate-700",     iconClass: "text-slate-400"   },
+  "default":        { dot: "bg-slate-400",   Icon: TbQuestionMark,     badge: "bg-slate-100 text-slate-700",     iconClass: "text-slate-400"   },
 };
 
 const POPOVER_WIDTH = 320;
@@ -120,26 +123,22 @@ function daysInPrevMonth(year: number, month: number): number {
 function calcPopoverPosition(cellRect: DOMRect, popoverHeight: number): PopoverPosition {
   const vw = window.innerWidth;
   const scrollY = window.scrollY;
-
   const spaceBelow = window.innerHeight - cellRect.bottom;
   const spaceAbove = cellRect.top;
   const placeBelow = spaceBelow >= popoverHeight + POPOVER_MARGIN || spaceBelow >= spaceAbove;
-
   let top = placeBelow ? cellRect.bottom + scrollY + POPOVER_MARGIN : cellRect.top + scrollY - popoverHeight - POPOVER_MARGIN;
-
   top = Math.max(scrollY + SCREEN_PADDING, top);
-
   const cellCentreX = cellRect.left + cellRect.width / 2;
   let left = cellCentreX - POPOVER_WIDTH / 2;
   left = Math.max(SCREEN_PADDING, Math.min(left, vw - POPOVER_WIDTH - SCREEN_PADDING));
-
   const arrowCentreInPopover = cellCentreX - left;
   const arrowLeft = Math.max(ARROW_SIZE + 4, Math.min(arrowCentreInPopover, POPOVER_WIDTH - ARROW_SIZE - 4));
-
   return { top, left, arrowLeft, arrowSide: placeBelow ? "top" : "bottom" };
 }
 
-interface AddExpenseFields {
+// ── EXPENSE TYPES ──────────────────────────────────────────────────────────────
+
+export interface AddExpenseFields {
   label: string;
   amount: string;
   type: Exclude<EventType, "default">;
@@ -147,18 +146,29 @@ interface AddExpenseFields {
 }
 
 const EXPENSE_TYPES: Exclude<EventType, "default">[] = [
-  "Housing",
-  "Food & Dining",
-  "Transportation",
-  "Healthcare",
-  "Entertainment",
-  "Shopping",
-  "Debt Payments",
-  "Other",
+  "Housing", "Food & Dining", "Transportation", "Healthcare",
+  "Entertainment", "Shopping", "Debt Payments", "Other",
 ];
 
-function AddExpenseForm({ date, onChange }: { date: string; onChange: (fields: AddExpenseFields) => void }) {
-  const [fields, setFields] = useState<AddExpenseFields>({ label: "", amount: "", type: "Other", date });
+function AddExpenseForm({
+  date,
+  initialValues,
+  onChange,
+  showDelete,
+  onDelete,
+}: {
+  date: string;
+  initialValues?: Partial<AddExpenseFields>;
+  onChange: (fields: AddExpenseFields) => void;
+  showDelete?: boolean;
+  onDelete?: () => void;
+}) {
+  const [fields, setFields] = useState<AddExpenseFields>({
+    label: initialValues?.label ?? "",
+    amount: initialValues?.amount ?? "",
+    type: initialValues?.type ?? "Other",
+    date: initialValues?.date ?? date,
+  });
 
   function update<K extends keyof AddExpenseFields>(key: K, value: AddExpenseFields[K]): void {
     const next = { ...fields, [key]: value };
@@ -178,7 +188,13 @@ function AddExpenseForm({ date, onChange }: { date: string; onChange: (fields: A
       </div>
       <div>
         <label className={labelClass}>Label</label>
-        <input type="text" placeholder="e.g. Grocery Run" value={fields.label} onChange={(e) => update("label", e.target.value)} className={inputClass} />
+        <input
+          type="text"
+          placeholder="e.g. Grocery Run"
+          value={fields.label}
+          onChange={(e) => update("label", e.target.value)}
+          className={inputClass}
+        />
       </div>
       <div>
         <label className={labelClass}>Amount</label>
@@ -191,7 +207,7 @@ function AddExpenseForm({ date, onChange }: { date: string; onChange: (fields: A
             placeholder="0.00"
             value={fields.amount}
             onChange={(e) => update("amount", e.target.value)}
-            className={`${inputClass}pl-7`}
+            className={`${inputClass} pl-7`}
           />
         </div>
       </div>
@@ -218,11 +234,25 @@ function AddExpenseForm({ date, onChange }: { date: string; onChange: (fields: A
           })}
         </div>
       </div>
+
+      {/* Delete button shown only in edit mode */}
+      {showDelete && onDelete && (
+        <button
+          type="button"
+          onClick={onDelete}
+          className="flex w-full items-center justify-center gap-2 rounded-xl border border-red-200 bg-red-50 py-2.5 text-sm font-bold text-red-500 transition-colors hover:bg-red-100"
+        >
+          <TbTrash className="h-4 w-4" />
+          Delete Event
+        </button>
+      )}
     </div>
   );
 }
 
-function EventPopover({ anchor, events, year, month, day, onClose, onAddExpense }: PopoverProps) {
+// ── POPOVER ────────────────────────────────────────────────────────────────────
+
+function EventPopover({ anchor, events, year, month, day, onClose, onAddExpense, onEditEvent, onDeleteEvent }: PopoverProps) {
   const popoverRef = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<PopoverPosition | null>(null);
 
@@ -233,10 +263,7 @@ function EventPopover({ anchor, events, year, month, day, onClose, onAddExpense 
     setPos(calcPopoverPosition(cellRect, popoverHeight));
   }, [anchor]);
 
-  useEffect(() => {
-    reposition();
-  }, [reposition]);
-
+  useEffect(() => { reposition(); }, [reposition]);
   useEffect(() => {
     window.addEventListener("scroll", reposition, true);
     window.addEventListener("resize", reposition);
@@ -255,20 +282,16 @@ function EventPopover({ anchor, events, year, month, day, onClose, onAddExpense 
   }, [anchor, onClose]);
 
   const dateLabel = new Date(year, month - 1, day).toLocaleDateString("en-US", {
-    weekday: "long",
-    month: "short",
-    day: "numeric",
+    weekday: "long", month: "short", day: "numeric",
   });
 
-  const boxStyle: React.CSSProperties =
-    pos ?
-      { position: "absolute", top: pos.top, left: pos.left, width: POPOVER_WIDTH }
+  const boxStyle: React.CSSProperties = pos
+    ? { position: "absolute", top: pos.top, left: pos.left, width: POPOVER_WIDTH }
     : { position: "absolute", visibility: "hidden", top: 0, left: 0, width: POPOVER_WIDTH };
 
   const arrowBoxSize = ARROW_SIZE * 2;
-  const arrowStyle: React.CSSProperties =
-    pos ?
-      {
+  const arrowStyle: React.CSSProperties = pos
+    ? {
         position: "absolute",
         width: arrowBoxSize,
         height: arrowBoxSize,
@@ -284,7 +307,7 @@ function EventPopover({ anchor, events, year, month, day, onClose, onAddExpense 
       className="z-9999 rounded-2xl border border-green-200 bg-white p-5 shadow-2xl ring-1 ring-black/5"
       onClick={(e) => e.stopPropagation()}
     >
-      {/* Arrow diamond */}
+      {/* Arrow */}
       <div
         style={arrowStyle}
         className={["bg-white border-green-200 rotate-45", pos?.arrowSide === "top" ? "border-l border-t" : "border-r border-b"].join(" ")}
@@ -311,7 +334,9 @@ function EventPopover({ anchor, events, year, month, day, onClose, onAddExpense 
               <div className="min-w-0 flex-1">
                 <div className="flex items-center justify-between gap-2">
                   <p className="truncate text-sm font-semibold">{ev.label}</p>
-                  {ev.is_income && <span className="shrink-0 rounded bg-green-500 px-1 py-0.5 text-[8px] font-bold uppercase text-white">Income</span>}
+                  {ev.is_income && (
+                    <span className="shrink-0 rounded bg-green-500 px-1 py-0.5 text-[8px] font-bold uppercase text-white">Income</span>
+                  )}
                 </div>
                 <p className="mt-0.5 flex items-center gap-1.5 text-xs text-slate-500">
                   <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${cfg.badge}`}>{ev.type}</span>
@@ -320,11 +345,22 @@ function EventPopover({ anchor, events, year, month, day, onClose, onAddExpense 
                   </span>
                 </p>
               </div>
+              {/* Edit button */}
+              <button
+                onClick={() => {
+                  onEditEvent(ev);
+                  onClose();
+                }}
+                className="shrink-0 rounded-lg border border-slate-200 px-2 py-1 text-[10px] font-bold text-slate-500 hover:bg-slate-100 transition-colors"
+              >
+                Edit
+              </button>
             </div>
           );
         })}
       </div>
 
+      {/* Add Expense button */}
       <button
         onClick={() => {
           onAddExpense(toDateStr(year, month, day));
@@ -340,6 +376,8 @@ function EventPopover({ anchor, events, year, month, day, onClose, onAddExpense 
   );
 }
 
+// ── MAIN CALENDAR ─────────────────────────────────────────────────────────────
+
 export default function Calendar() {
   const [year, setYear] = useState<number>(new Date().getFullYear());
   const [month, setMonth] = useState<number>(new Date().getMonth() + 1);
@@ -347,10 +385,15 @@ export default function Calendar() {
   const [loading, setLoading] = useState(true);
   const [popover, setPopover] = useState<PopoverState | null>(null);
 
-  // State for the Add Expense modal
-  const [modalOpen, setModalOpen] = useState<boolean>(false);
-  const [modalDate, setModalDate] = useState<string>("");
+  // Add modal
+  const [modalOpen, setModalOpen] = useState(false);
+  const [modalDate, setModalDate] = useState("");
   const [pendingExpense, setPendingExpense] = useState<AddExpenseFields | null>(null);
+
+  // Edit modal
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null);
+  const [editFields, setEditFields] = useState<AddExpenseFields | null>(null);
 
   const fetchEvents = useCallback(async () => {
     try {
@@ -366,57 +409,46 @@ export default function Calendar() {
     }
   }, []);
 
-  useEffect(() => {
-    fetchEvents();
-  }, [fetchEvents]);
+  useEffect(() => { fetchEvents(); }, [fetchEvents]);
 
   const eventMap = useMemo(() => buildEventMap(events), [events]);
 
   function prevMonth(): void {
-    if (month === 1) {
-      setYear((y) => y - 1);
-      setMonth(12);
-    } else setMonth((m) => m - 1);
+    if (month === 1) { setYear((y) => y - 1); setMonth(12); }
+    else setMonth((m) => m - 1);
     setPopover(null);
   }
   function nextMonth(): void {
-    if (month === 12) {
-      setYear((y) => y + 1);
-      setMonth(1);
-    } else setMonth((m) => m + 1);
+    if (month === 12) { setYear((y) => y + 1); setMonth(1); }
+    else setMonth((m) => m + 1);
     setPopover(null);
   }
 
   const closePopover = useCallback((): void => setPopover(null), []);
 
   function handleDayClick(day: number, e: React.MouseEvent<HTMLDivElement>): void {
-    if (popover?.day === day) {
-      setPopover(null);
-      return;
-    }
+    if (popover?.day === day) { setPopover(null); return; }
     setPopover({ day, anchor: e.currentTarget });
   }
 
-  // Opens the modal pre-filled with the clicked day's date
+  // ── ADD ──────────────────────────────────────────────────────────────────────
   function handleAddExpense(date: string): void {
     setModalDate(date);
     setPendingExpense(null);
     setModalOpen(true);
   }
 
-  async function handleModalConfirm() {
+  async function handleAddConfirm() {
     if (!pendingExpense) return;
     try {
       await apiFetch("/api/calendar", {
         method: "POST",
-        body: JSON.stringify([
-          {
-            date: pendingExpense.date,
-            type: pendingExpense.type,
-            label: pendingExpense.label,
-            amount: parseFloat(pendingExpense.amount) || 0,
-          },
-        ]),
+        body: JSON.stringify([{
+          date: pendingExpense.date,
+          type: pendingExpense.type,
+          label: pendingExpense.label,
+          amount: parseFloat(pendingExpense.amount) || 0,
+        }]),
       });
       fetchEvents();
     } catch (err) {
@@ -425,10 +457,60 @@ export default function Calendar() {
     setModalOpen(false);
   }
 
-  function handleModalCancel(): void {
-    setModalOpen(false);
+  // ── EDIT ─────────────────────────────────────────────────────────────────────
+  function handleEditEvent(event: CalendarEvent): void {
+    setEditingEvent(event);
+    setEditFields({
+      label: event.label,
+      amount: String(event.amount),
+      type: (event.type as Exclude<EventType, "default">) || "Other",
+      date: event.date.split("T")[0],
+    });
+    setEditModalOpen(true);
   }
 
+  async function handleEditConfirm() {
+    if (!editingEvent || !editFields) return;
+    try {
+      // Delete old event
+      await apiFetch("/api/calendar/delete", {
+        method: "POST",
+        body: JSON.stringify({ date: editingEvent.date, label: editingEvent.label }),
+      });
+      // Save updated event
+      await apiFetch("/api/calendar", {
+        method: "POST",
+        body: JSON.stringify([{
+          date: editFields.date,
+          type: editFields.type,
+          label: editFields.label,
+          amount: parseFloat(editFields.amount) || 0,
+        }]),
+      });
+      fetchEvents();
+    } catch (err) {
+      console.error("Failed to edit event", err);
+    }
+    setEditModalOpen(false);
+    setEditingEvent(null);
+  }
+
+  // ── DELETE ───────────────────────────────────────────────────────────────────
+  async function handleDeleteEvent(event: CalendarEvent): Promise<void> {
+    try {
+      await apiFetch("/api/calendar/delete", {
+        method: "POST",
+        body: JSON.stringify({ date: event.date, label: event.label }),
+      });
+      fetchEvents();
+    } catch (err) {
+      console.error("Failed to delete event", err);
+    }
+    setEditModalOpen(false);
+    setEditingEvent(null);
+  }
+
+  // ── CALENDAR GRID ────────────────────────────────────────────────────────────
   const startWeekday = firstWeekday(year, month);
   const totalDays = daysInMonth(year, month);
   const prevTail = Array.from({ length: startWeekday }, (_, i) => daysInPrevMonth(year, month) - startWeekday + 1 + i);
@@ -439,8 +521,9 @@ export default function Calendar() {
 
   const monthPrefix = `${year}-${String(month).padStart(2, "0")}`;
   const monthEvents = events.filter((ev) => ev.date.startsWith(monthPrefix));
-  const totalSpending = monthEvents.filter((e) => !e.is_income).reduce((s, ev) => s + ev.amount, 0);
-  const totalIncome = monthEvents.filter((e) => e.is_income).reduce((s, ev) => s + ev.amount, 0);
+  const totalSpending = monthEvents.filter((e) => !e.is_income && e.source === "manual").reduce((s, ev) => s + ev.amount, 0);
+  const totalActual = monthEvents.filter((e) => !e.is_income && e.source === "transaction").reduce((s, ev) => s + ev.amount, 0);
+  const totalIncome = monthEvents.filter((e) => e.is_income && e.source !== "transaction").reduce((s, ev) => s + ev.amount, 0);
   const uniqueDays = new Set(monthEvents.map((e) => e.date.split("T")[0])).size;
 
   const selectedEvents: CalendarEvent[] = popover ? (eventMap[toDateStr(year, month, popover.day)] ?? []) : [];
@@ -471,20 +554,14 @@ export default function Calendar() {
         <div className="flex grow flex-col items-stretch overflow-hidden rounded-xl border border-slate-100 bg-white shadow-sm">
           <div className="grid grid-cols-7 border-b border-slate-100 bg-slate-50">
             {DAYS_OF_WEEK.map((d) => (
-              <div key={d} className="py-4 text-center text-xs font-bold uppercase text-slate-500">
-                {d}
-              </div>
+              <div key={d} className="py-4 text-center text-xs font-bold uppercase text-slate-500">{d}</div>
             ))}
           </div>
-
           <div className="min-h-83.75 grid grow grid-cols-7">
             {prevTail.map((day) => (
-              <div key={`prev-${day}`} className="border-b border-r border-slate-100 bg-slate-50/50 p-4 text-slate-300">
-                {day}
-              </div>
+              <div key={`prev-${day}`} className="border-b border-r border-slate-100 bg-slate-50/50 p-4 text-slate-300">{day}</div>
             ))}
-
-            {currDays.map((day, idx) => {
+            {currDays.map((day) => {
               const dayEvents = eventMap[toDateStr(year, month, day)] ?? [];
               const isSelected = popover?.day === day;
               return (
@@ -494,9 +571,7 @@ export default function Calendar() {
                   className={[
                     "relative cursor-pointer border-b border-r border-slate-100 p-4 font-medium transition-colors",
                     isSelected ? "bg-green-50" : "hover:bg-slate-50",
-                  ]
-                    .filter(Boolean)
-                    .join(" ")}
+                  ].join(" ")}
                 >
                   <span className={isSelected ? "font-bold text-green-600" : ""}>{day}</span>
                   {dayEvents.length > 0 && (
@@ -509,7 +584,6 @@ export default function Calendar() {
                 </div>
               );
             })}
-
             {nextHead.map((day, idx) => (
               <div key={`next-${day}`} className={`bg-slate-50/50 p-4 text-slate-300 ${idx < nextHead.length - 1 ? "border-r border-slate-100" : ""}`}>
                 {day}
@@ -526,31 +600,29 @@ export default function Calendar() {
               <h4 className="font-bold">Monthly Income</h4>
             </div>
             <p className="text-3xl font-black text-green-600">+${totalIncome.toFixed(2)}</p>
-            <p className="mt-1 text-sm text-slate-500">
-              For {MONTH_NAMES[month - 1]} {year}
-            </p>
+            <p className="mt-1 text-sm text-slate-500">For {MONTH_NAMES[month - 1]} {year}</p>
           </div>
-
           <div className="rounded-xl border border-rose-100 bg-rose-50 p-6 shadow-sm">
             <div className="mb-2 flex items-center gap-3">
               <TbCreditCard className="h-5 w-5 text-rose-600" />
               <h4 className="font-bold">Monthly Spending</h4>
             </div>
-            <p className="text-3xl font-black text-rose-600">-${totalSpending.toFixed(2)}</p>
-            <p className="mt-1 text-sm text-slate-500">Estimated & Actual</p>
+            <p className="text-3xl font-black text-rose-600">-${totalActual.toFixed(2)}</p>
+            <p className="mt-1 text-sm text-slate-500">
+              Actual transactions
+              {totalSpending > 0 && (
+                <span className="ml-2 text-slate-400">· ${totalSpending.toFixed(2)} estimated</span>
+              )}
+            </p>
           </div>
-
           <div className="rounded-xl border border-slate-100 bg-white p-6 shadow-sm">
             <div className="mb-2 flex items-center gap-3">
               <TbCalendarEvent className="h-5 w-5 text-slate-400" />
               <h4 className="font-bold">Events This Month</h4>
             </div>
             <p className="text-3xl font-black text-slate-700">{monthEvents.length}</p>
-            <p className="mt-1 text-sm text-slate-500">
-              Across {uniqueDays} day{uniqueDays !== 1 ? "s" : ""}
-            </p>
+            <p className="mt-1 text-sm text-slate-500">Across {uniqueDays} day{uniqueDays !== 1 ? "s" : ""}</p>
           </div>
-
           <div className="hidden rounded-xl border border-slate-100 bg-white p-6 shadow-sm lg:block">
             <div className="mb-2 flex items-center gap-3">
               <TbList className="h-5 w-5 text-slate-400" />
@@ -570,6 +642,7 @@ export default function Calendar() {
         </div>
       </main>
 
+      {/* Day popover */}
       {popover && (
         <EventPopover
           anchor={popover.anchor}
@@ -579,19 +652,46 @@ export default function Calendar() {
           day={popover.day}
           onClose={closePopover}
           onAddExpense={handleAddExpense}
+          onEditEvent={handleEditEvent}
+          onDeleteEvent={handleDeleteEvent}
         />
       )}
 
+      {/* Add Expense modal */}
       <Modal
         isOpen={modalOpen}
         onClose={() => setModalOpen(false)}
         title="Add Expense"
         confirmText="Add Expense"
         cancelText="Cancel"
-        onConfirm={handleModalConfirm}
-        onCancel={handleModalCancel}
+        onConfirm={handleAddConfirm}
+        onCancel={() => setModalOpen(false)}
       >
-        <AddExpenseForm date={modalDate} onChange={(fields) => setPendingExpense(fields)} />
+        <AddExpenseForm
+          date={modalDate}
+          onChange={(fields) => setPendingExpense(fields)}
+        />
+      </Modal>
+
+      {/* Edit Expense modal */}
+      <Modal
+        isOpen={editModalOpen}
+        onClose={() => setEditModalOpen(false)}
+        title="Edit Expense"
+        confirmText="Save Changes"
+        cancelText="Cancel"
+        onConfirm={handleEditConfirm}
+        onCancel={() => setEditModalOpen(false)}
+      >
+        {editingEvent && editFields && (
+          <AddExpenseForm
+            date={editFields.date}
+            initialValues={editFields}
+            onChange={(fields) => setEditFields(fields)}
+            showDelete
+            onDelete={() => handleDeleteEvent(editingEvent)}
+          />
+        )}
       </Modal>
     </>
   );
