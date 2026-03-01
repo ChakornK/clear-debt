@@ -3,7 +3,7 @@
 import { GlobalContext } from "@/contexts/GlobalContext";
 import { cva } from "class-variance-authority";
 import Link from "next/link";
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useContext, useEffect } from "react";
 import { apiFetch, clearAuthToken, setAuthToken } from "@/lib/api";
 import {
@@ -50,6 +50,7 @@ const navLink = cva("flex items-center gap-3 px-4 py-3 rounded-xl font-bold tran
 export const Navbar = () => {
   const { userData, setUserData } = useContext(GlobalContext);
 
+  const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
@@ -74,6 +75,10 @@ export const Navbar = () => {
       .catch((err) => {
         console.error("Failed to fetch user data", err);
         clearAuthToken();
+
+        if (pathname !== "/") {
+          router.push("/");
+        }
       });
   }, [searchParams]);
 
