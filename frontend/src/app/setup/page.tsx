@@ -2,9 +2,10 @@
 
 import { ActivityInputField } from "@/components/ActivityInputField";
 import { DebtInputField } from "@/components/DebtInputField";
-import PrimaryButton from "@/components/PrimaryButton";
+import CalendarButton from "@/components/CalendarButton";
 import { useState } from "react";
-import { TbSquareRoundedPlusFilled } from "react-icons/tb";
+import { TbArrowBigRightLines } from "react-icons/tb";
+import AddButton from "@/components/AddButton";
 
 export default function Setup() {
   const [debt, setDebt] = useState([{ key: 1 }]);
@@ -30,24 +31,24 @@ export default function Setup() {
     <main className="flex flex-1 flex-col gap-6 p-6 xl:px-20 xl:py-8">
       <div>
       {/* Calendar Connection */}
-      <div className="px-6 py-7">
-        <div className="flex flex-col gap-2 mb-6">
+      <div className="px-6 py-7 mb-6">
+        <div className="flex flex-col gap-2">
           {/* title */}
           <p className="text-2xl font-bold">Sync Your Schedule</p>
           {/* subtext */}
           <p className="text-slate-600 dark:text-slate-400 pb-4">Identify potential spending triggers by connecting your calendars.</p>
           {/* connect calendar buttons */}
           <div className="flex flex-row gap-4">
-            <PrimaryButton onClick={func}>Connect Google Calendar</PrimaryButton>
-            <PrimaryButton onClick={func}>Connect Outlook Calendar</PrimaryButton>
-            <PrimaryButton onClick={func}>Connect Apple Calender</PrimaryButton>
+            <CalendarButton onClick={func}>Connect Google Calendar</CalendarButton>
+            <CalendarButton onClick={func}>Connect Outlook Calendar</CalendarButton>
+            <CalendarButton onClick={func}>Connect Apple Calender</CalendarButton>
           </div>
         </div>
       </div>
       
       {/* Debt */}
-      <div className="px-6 py-7 bg-white rounded-2xl shadow-sm border border-green-200">
-        <div className="flex flex-col gap-2 mb-6">
+      <div className="px-6 py-7 bg-white rounded-2xl shadow-sm border border-green-200 mb-6">
+        <div className="flex flex-col gap-2">
           {/* title */}
           <p className="text-2xl font-bold">Add Your Debts</p>
           {/* subtext */}
@@ -57,20 +58,13 @@ export default function Setup() {
             <DebtInputField key={d.key} />
           ))}
           {/* add button */}
-          <button type="button" onClick={addDebtElement} className="mt-6 flex items-center gap-2 font-bold text-green-400">
-            <div className="flex flex-row gap-2 items-center">
-              <div className="text-green-400">
-                <TbSquareRoundedPlusFilled />
-              </div>
-              <p>Add another debt</p>
-            </div>
-          </button>
+          <AddButton children="Add another debt" onClick={addDebtElement} />
         </div>
       </div>
 
       {/* Spending Triggers */}
-      <div className="px-6 py-7">
-        <div className="flex flex-col gap-2 mb-6">
+      <div className="px-6 py-7 mb-6">
+        <div className="flex flex-col gap-2">
           {/* title */}
           <p className="text-2xl font-bold">Smart Spending Triggers</p>
           {/* subtext */}
@@ -82,35 +76,44 @@ export default function Setup() {
           ))}
           </div>
           {/* add button */}
-          <button type="button" onClick={addActivityElement} className="mt-6 flex items-center gap-2 font-bold text-green-400">
-            <div className="flex flex-row gap-2 items-center">
-              <div className="text-green-400">
-                <TbSquareRoundedPlusFilled />
-              </div>
-              <p>Add another activity</p>
-            </div>
-          </button>
+          <AddButton children="Add another activity" onClick={addActivityElement} />
         </div>
       </div>
 
       {/* Income & Spending Limit */}
-      <div className="px-6 py-7 bg-green-50 rounded-2xl shadow-sm border border-green-400 border-dashed">
-        <div className="flex flex-col gap-2 mb-6">
+      <div className="px-6 py-7 bg-green-50 rounded-2xl shadow-sm border border-green-400 border-dashed mb-6">
+        <div className="flex flex-col gap-2">
           {/* title */}
           <p className="text-2xl font-bold">Income & Goal</p>
           {/* subtext */}
           <p className="text-slate-600 dark:text-slate-400 pb-4">Balance your lifestyle with your debt goals.</p>
-          {/* monthly income */}
-          <p className="font-semibold ml-1">Monthly Income ($)</p>
+          <div className="flex flex-row justify-between">
+            {/* monthly income */}
+            <p className="font-semibold ml-1">Monthly Income ($)</p>
             <input
                 type="text"
                 placeholder="e.g. 4500"
-                className="mt-1 block rounded-md text-green-600 bg-white border-green-200 shadow-sm focus:border-green-400 focus:ring-green-400 p-2 border"
+                className="w-fit mt-1 block rounded-md text-green-600 bg-white border-green-200 shadow-sm focus:border-green-400 focus:ring-green-400 p-2 border"
             />
+            {/* monthly spending limit */}
+            <p className="font-semibold ml-1">Monthly Spending Limit ($)</p>
+            <input
+                type="text"
+                placeholder="e.g. 2800"
+                className="w-fit mt-1 block rounded-md text-green-600 bg-white border-green-200 shadow-sm focus:border-green-400 focus:ring-green-400 p-2 border"
+            />
+          </div>
+          <div className="px-5 py-6 mt-6 bg-green-400 rounded-2xl shadow-sm">
+            <p className="font-bold text-2xl">Amount left over: $xx.xx</p>
+          </div>
         </div>
       </div>
 
       {/* Save Button */}
+      <button type="button" onClick={func} className="w-full mt-6 rounded-xl px-4 py-3 flex items-center justify-center gap-2 font-bold bg-green-400 hover:bg-green-300">
+          Save
+          <TbArrowBigRightLines />
+      </button>
       </div>
     </main>
   );
