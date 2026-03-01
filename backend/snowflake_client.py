@@ -118,3 +118,17 @@ def save_plan(user_id, plan):
     """, (user_id, json.dumps(plan)))
     conn.commit()
     cur.close(); conn.close()
+
+def get_transactions_raw(user_id: str):
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT TX_DATE, CATEGORY, AMOUNT, DESCRIPTION
+        FROM TRANSACTIONS
+        WHERE USER_ID = %s
+        ORDER BY TX_DATE DESC
+        LIMIT 200
+    """, (user_id,))
+    rows = cur.fetchall()
+    cur.close(); conn.close()
+    return [{'date': str(r[0]), 'category': r[1], 'amount': r[2], 'description': r[3]} for r in rows]
