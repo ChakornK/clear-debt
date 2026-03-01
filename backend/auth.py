@@ -34,14 +34,6 @@ async def auth_callback(request: Request):
         if not user_info:
             raise HTTPException(status_code=400, detail="Failed to fetch user info")
         
-        # In a real app, you would save/update this user in your database
-        # user = User(
-        #     id=user_info['sub'],
-        #     email=user_info['email'],
-        #     name=user_info.get('name'),
-        #     picture=user_info.get('picture')
-        # )
-        
         # For session-based auth:
         request.session['user'] = user_info
 
@@ -61,7 +53,13 @@ async def get_me(request: Request):
     user = request.session.get('user')
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
-    return user
+    return {
+        'id': user['sub'],
+        'email': user['email'],
+        'name': user['name'],
+        'given_name': user['given_name'],
+        'picture': user['picture']
+    }
 
 async def get_current_user(request: Request):
     user = request.session.get('user')
