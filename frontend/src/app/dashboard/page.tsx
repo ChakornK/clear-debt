@@ -4,6 +4,7 @@ import { cva } from "class-variance-authority";
 import Link from "next/link";
 import { MilestoneFeed } from "@/components/MilestoneFeed";
 import { useEffect, useState } from "react";
+import { BehavioralNudges } from "@/components/BehavioralNudges";
 import {
   TbAnalyze,
   TbCalendarMonth,
@@ -135,22 +136,7 @@ export default function Dashboard() {
       <main className="flex flex-1 flex-col gap-6 p-6 xl:p-10">
         {/* Top Summary Section */}
         <section className="grid grid-cols-1 gap-6 xl:grid-cols-3">
-          <div className="flex items-center justify-between rounded-xl border border-green-200 bg-green-50 p-6 shadow-sm">
-            <div className="flex flex-col gap-1">
-              <h3 className="text-sm font-bold text-slate-800">Achievement</h3>
-              <p className="text-xl font-black text-slate-900">{achievement.label}</p>
-              <p className="text-lg font-bold text-green-500">{achievement.value}</p>
-            </div>
-            <div className="flex aspect-square h-16 w-16 items-center justify-center rounded-full bg-green-400 text-white">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"
-                />
-              </svg>
-            </div>
-          </div>
+          <BehavioralNudges />
 
           <div className="flex flex-col gap-4 rounded-xl border border-slate-100 bg-white p-6 shadow-sm xl:col-span-2">
             <div className="flex items-end justify-between">
