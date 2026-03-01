@@ -8,15 +8,18 @@ Built using **Google Gemini AI**, **Snowflake**, and **Plaid**.
 
 ## What It Does
 
-Most debt repayment tools ignore the reality of modern life — that a "Study Group at Coffee Shop" event on your calendar means $25 in spending, or that three social events in one weekend requires proactive budget adjustments. ClearDebt connects your calendar, your bank accounts, and your debts to give you a complete financial picture.
+Most debt repayment tools ignore the reality of modern life — that a "Study Group at Coffee Shop" event on your calendar means $25 in spending, or that three social events in one weekend requires proactive budget adjustments. ClearDebt helps users eliminate debt faster by combining real banking data, calendar intelligence, and AI-powered repayment strategies. Instead of generic advice, every recommendation is grounded in the user's actual balances, spending behavior, and upcoming financial events.
+
 
 **Key innovation:** When you add a calendar event, ClearDebt uses Gemini AI to instantly predict how much you'll spend — before the money leaves your account.
 
 ---
 
 ## Features
-### 1. Connected Accounts Dashboard
-Displays all debt accounts (credit cards, loans, lines of credit) as cards showing balance, APR, minimum payment, and due date. Includes a donut chart showing total debt composition. Supports both Plaid-connected bank accounts and manually added debts.
+### 1. Multi-Source Debt Aggregation
+Connects to real bank accounts via Plaid (credit cards, lines of credit, student loans, auto loans)
+Manual debt entry for accounts outside Plaid
+All data unified in Snowflake as a single financial profile
 
 ### 2. Spending Behavior Analyzer
 Reads 90 days of transaction history and surfaces patterns — average monthly spend by category, recurring subscriptions, and seasonal spikes. This output feeds directly into the AI's reasoning when generating your repayment plan.

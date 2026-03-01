@@ -2,7 +2,7 @@ import httpx
 from datetime import datetime, timedelta
 
 async def get_google_calendar_events(access_token: str, days: int = 30):
-    time_min = datetime.utcnow().isoformat() + 'Z'
+    time_min = (datetime.utcnow() - timedelta(days=days)).isoformat() + 'Z'
     time_max = (datetime.utcnow() + timedelta(days=days)).isoformat() + 'Z'
     
     url = "https://www.googleapis.com/calendar/v3/calendars/primary/events"
