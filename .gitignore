@@ -1,0 +1,35 @@
+# Python
+venv/
+__pycache__/
+*.pyc
+.env
+
+# Node / Frontend
+node_modules/
+dist/
+build/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# VS Code
+.vscode/
+.idea/# Python
+venv/
+__pycache__/
+*.pyc
+.env
+
+# Node / Frontend
+node_modules/
+dist/
+build/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# VS Code
+.vscode/
+.idea/
