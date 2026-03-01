@@ -607,7 +607,7 @@ export default function Setup() {
             >
               {saving ?
                 <TbLoader className="h-6 w-6 animate-spin" />
-              : "Update Everything"}
+              : "Save changes"}
             </button>
           </div>
         )}
