@@ -3,24 +3,84 @@
 import { ActivityInputField } from "@/components/ActivityInputField";
 import { DebtInputField } from "@/components/DebtInputField";
 import CalendarButton from "@/components/CalendarButton";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { TbArrowBigRightLines } from "react-icons/tb";
 import AddButton from "@/components/AddButton";
+import api from "@/api/axios";
+import { MouseEvent } from 'react';
 
 export default function Setup() {
-  const [debt, setDebt] = useState([{ key: 1 }]);
+
+const dummyDebt = {
+    id: "debt123",
+    name: "credit card debt",
+    type: "credit card",
+    balance: 5000,
+    apr: 18.99,
+    minimum: 25,
+    due: 0,
+    source: "manual",
+  }
+
+  const [userID, setUserID] = useState("user123");
+  const [debt, setDebt] = useState([dummyDebt]);
   const [activities, setActivities] = useState([ { key: 1, value: 2 } ]);
 
+  useEffect(() => {
+    api
+      .get('debts/'+userID)
+      .then(response => {
+        console.log(response);
+      })
+      .catch(error => {
+        console.log(error);
+      });
+  }, []);
+
   const addDebtElement = () => {
-    const newKey = debt.length + 1;
-    const newDebt = { key: newKey };
+    const date = new Date();
+    const newDebt = {
+    id: date.toISOString(),
+    name: "",
+    type: "",
+    balance: 0,
+    apr: 0,
+    minimum: 0,
+    due: 0,
+    source: "manual",
+  };
     setDebt(prevDebt => [...prevDebt, newDebt]);
+  }
+
+  const removeDebtElement = (event: MouseEvent<HTMLButtonElement>) => {
+    const id = event.currentTarget.getAttribute("id");
+    var newDebt = debt.filter(d => d.id != id);
+    setDebt(newDebt);
+  }
+
+  const onDebtTitleUpdate = (event) => {
+    var id = event.target.getAttribute("id");
+    setDebt(prevDebt =>
+      prevDebt.map(d =>
+        d.id === id ? { ...d, name: event.target.value } : d
+      )
+    );
   }
 
   const addActivityElement = () => {
     const newKey = activities.length + 1;
     const newActivity = { key: newKey, value: 2 };
     setActivities(prevActivities => [...prevActivities, newActivity]);
+  }
+
+  const onSave = () => {
+    // save debt
+
+    // save activities
+
+    // save monthly income
+
+    // save monthly expenses
   }
 
   const func = () => {
@@ -55,7 +115,7 @@ export default function Setup() {
           <p className="text-slate-600 dark:text-slate-400 pb-4">List your outstanding balances to calculate your payoff strategy.</p>
           {/* debt input fields */}
           {debt.map((d) => (
-            <DebtInputField key={d.key} />
+            <DebtInputField key={d.id} id={d.id} onRemoveClick={removeDebtElement} onTitleChange={onDebtTitleUpdate} />
           ))}
           {/* add button */}
           <AddButton children="Add another debt" onClick={addDebtElement} />
