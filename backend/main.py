@@ -5,10 +5,10 @@ from models import (ExchangeTokenRequest, SaveDebtsRequest, GeneratePlanRequest,
                     ChatRequest, CalendarEvent, DashboardResponse, PredictEventRequest)
 from plaid_client import create_link_token, exchange_public_token, get_accounts, get_transactions, get_liabilities
 from snowflake_client import (save_access_token, get_access_token, save_debts,
-    get_debts, save_transactions, get_transactions_raw, get_spending_summary,
+    get_debts, save_transactions, get_spending_summary,
     save_calendar_events, get_calendar_events, save_plan, get_connection,
-    get_cached_milestone, save_milestone, get_cached_category_mappings, save_category_mappings,
-    get_dashboard_data, predict_event_spend)
+    get_cached_milestone, save_milestone, save_category_mappings,
+    get_dashboard_data)
 import time
 from cortex import generate_plan, chat, generate_milestone, classify_transactions
 from math_engine import calc_all_strategies
