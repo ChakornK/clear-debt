@@ -51,9 +51,9 @@ const routes = [
 const navLink = cva("flex items-center gap-3 px-3 py-3 rounded-xl font-bold transition relative group", {
   variants: {
     intent: {
-      selected: "bg-green-600/10 text-green-900",
-      unselected: "hover:bg-neutral-200/50",
-      danger: "bg-red-600/10 text-red-900 hover:bg-red-600/20",
+      selected: "bg-green-500/10 text-green-400",
+      unselected: "hover:bg-slate-700 text-slate-400",
+      danger: "bg-red-500/10 text-red-400 hover:bg-red-500/20",
     },
   },
 });
@@ -100,14 +100,14 @@ export const Navbar = () => {
 
   return (
     <nav
-      className={`relative flex shrink-0 flex-col items-stretch gap-1 overflow-visible bg-neutral-100 p-4 text-slate-900 transition-all duration-300 ease-in-out
+      className={`relative flex shrink-0 flex-col items-stretch gap-1 overflow-visible bg-slate-800 p-4 text-slate-100 border-r border-slate-700 transition-all duration-300 ease-in-out
         ${collapsed ? "w-[72px]" : "w-2xs"}
       `}
     >
       {collapsed && (
         <button
           onClick={() => setCollapsed(false)}
-          className="mx-auto mb-6 flex h-7 w-7 items-center justify-center rounded-lg border border-neutral-200 bg-white text-slate-500 shadow-sm transition hover:text-slate-800"
+          className="mx-auto mb-6 flex h-7 w-7 items-center justify-center rounded-lg border border-slate-700 bg-slate-700 text-slate-400 shadow-sm transition hover:text-slate-100"
           title="Expand sidebar"
         >
           <TbChevronRight className="text-base" />
@@ -116,12 +116,12 @@ export const Navbar = () => {
 
       {/* Header: avatar + name */}
       <div className="mb-6 flex items-center gap-3">
-        <div className="h-10 w-10 shrink-0 overflow-clip rounded-full bg-neutral-200">
+        <div className="h-10 w-10 shrink-0 overflow-clip rounded-full bg-slate-700">
           {userData.picture && <img src={userData.picture} alt="" className="h-full w-full" />}
         </div>
         {!collapsed && (
           <div className="min-w-0 flex-1 leading-tight">
-            <p className="truncate text-lg font-bold">{userData.given_name}</p>
+            <p className="truncate text-lg font-bold text-white">{userData.given_name}</p>
           </div>
         )}
 
@@ -129,7 +129,7 @@ export const Navbar = () => {
         {!collapsed && (
           <button
             onClick={() => setCollapsed(true)}
-            className="ml-auto flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-neutral-200 bg-white text-slate-500 shadow-sm transition hover:text-slate-800"
+            className="ml-auto flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-slate-700 bg-slate-700 text-slate-400 shadow-sm transition hover:text-slate-100"
             title="Collapse sidebar"
           >
             <TbChevronLeft className="text-base" />

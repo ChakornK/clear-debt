@@ -32,12 +32,12 @@ export const DebtInputField = ({ id, debt, onRemoveClick, onFieldChange, showErr
   const debtTypes = Object.keys(DebtType).filter((key) => isNaN(Number(key)));
 
   const inputClass =
-    "w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition-colors focus:border-green-400 focus:ring-2 focus:ring-green-100";
-  const labelClass = "mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500";
+    "w-full rounded-xl border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white outline-none transition-colors focus:border-green-400 focus:ring-2 focus:ring-green-500/20";
+  const labelClass = "mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-400";
 
   return (
-    <div className="group relative flex w-full flex-col gap-6 rounded-2xl border border-slate-100 bg-white p-6 shadow-sm transition-all hover:shadow-md">
-      <button type="button" id={id} onClick={onRemoveClick} className="absolute right-4 top-4 text-slate-300 transition-colors hover:text-red-500">
+    <div className="group relative flex w-full flex-col gap-6 rounded-2xl border border-slate-700 bg-slate-900 p-6 shadow-sm transition-all hover:border-slate-600">
+      <button type="button" id={id} onClick={onRemoveClick} className="absolute right-4 top-4 text-slate-500 transition-colors hover:text-red-400">
         <TbSquareRoundedXFilled className="h-6 w-6" />
       </button>
 
@@ -50,7 +50,7 @@ export const DebtInputField = ({ id, debt, onRemoveClick, onFieldChange, showErr
             value={debt.name}
             placeholder="e.g. Sapphire Preferred"
             onChange={(e) => onFieldChange(id, "name", e.target.value)}
-            className={`${inputClass} ${showErrors && !debt.name ? "border-red-400 bg-red-50 focus:ring-red-100" : ""}`}
+            className={`${inputClass} ${showErrors && !debt.name ? "border-red-500/20 bg-red-500/10 focus:ring-red-500/5 text-red-100" : ""}`}
           />
         </div>
 
@@ -80,7 +80,7 @@ export const DebtInputField = ({ id, debt, onRemoveClick, onFieldChange, showErr
               value={debt.balance || ""}
               placeholder="0.00"
               onChange={(e) => onFieldChange(id, "balance", parseFloat(e.target.value) || 0)}
-              className={`${inputClass} pl-7 ${showErrors && debt.balance < 0 ? "border-red-400 bg-red-50 focus:ring-red-100" : ""}`}
+              className={`${inputClass} pl-7 ${showErrors && debt.balance < 0 ? "border-red-500/20 bg-red-500/10 focus:ring-red-500/5 text-red-100" : ""}`}
             />
           </div>
         </div>
@@ -96,7 +96,7 @@ export const DebtInputField = ({ id, debt, onRemoveClick, onFieldChange, showErr
               value={debt.apr || ""}
               placeholder="15.99"
               onChange={(e) => onFieldChange(id, "apr", parseFloat(e.target.value) || 0)}
-              className={`${inputClass} pr-8 ${showErrors && (debt.apr < 0 || debt.apr > 100) ? "border-red-400 bg-red-50 focus:ring-red-100" : ""}`}
+              className={`${inputClass} pr-8 ${showErrors && (debt.apr < 0 || debt.apr > 100) ? "border-red-500/20 bg-red-500/10 focus:ring-red-500/5 text-red-100" : ""}`}
             />
             <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm text-slate-400">%</span>
           </div>
@@ -115,7 +115,7 @@ export const DebtInputField = ({ id, debt, onRemoveClick, onFieldChange, showErr
               value={debt.minimum || ""}
               placeholder="25.00"
               onChange={(e) => onFieldChange(id, "minimum", parseFloat(e.target.value) || 0)}
-              className={`${inputClass} pl-7 ${showErrors && (debt.minimum < 0 || debt.minimum > debt.balance) ? "border-red-400 bg-red-50 focus:ring-red-100" : ""}`}
+              className={`${inputClass} pl-7 ${showErrors && (debt.minimum < 0 || debt.minimum > debt.balance) ? "border-red-500/20 bg-red-500/10 focus:ring-red-500/5 text-red-100" : ""}`}
             />
           </div>
         </div>

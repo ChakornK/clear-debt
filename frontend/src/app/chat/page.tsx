@@ -23,7 +23,7 @@ function ThinkingBubble() {
   return (
     <div className="flex items-start gap-3">
       <AssistantAvatar />
-      <div className="rounded-2xl rounded-tl-sm border border-slate-200 bg-white px-4 py-3 shadow-sm">
+      <div className="rounded-2xl rounded-tl-sm border border-slate-700 bg-slate-700 px-4 py-3 shadow-sm text-white">
         <span className="flex gap-1">
           {[0, 1, 2].map((i) => (
             <span key={i} className="inline-block h-1.5 w-1.5 animate-bounce rounded-full bg-slate-400" style={{ animationDelay: `${i * 0.15}s` }} />
@@ -130,18 +130,18 @@ export default function ChatPage() {
   const canSend = !isStreaming && input.trim().length > 0;
 
   return (
-    <div className="flex min-h-screen w-full items-start justify-center bg-white px-4 py-8">
-      <div className="flex h-[calc(100vh-4rem)] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 shadow-md">
+    <div className="flex min-h-screen w-full items-start justify-center bg-slate-900 px-4 py-8 text-white">
+      <div className="flex h-[calc(100vh-4rem)] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-slate-800 bg-slate-800 shadow-md">
         {/* ── Header ───────────────────────────────────── */}
-        <header className="flex shrink-0 items-center gap-3 border-b border-slate-200 bg-white px-5 py-4">
+        <header className="flex shrink-0 items-center gap-3 border-b border-slate-700 bg-slate-800 px-5 py-4">
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-500 text-white shadow-sm">
             <TbSparkles className="h-5 w-5" />
           </div>
           <div>
-            <h1 className="text-sm font-semibold leading-tight text-slate-900">Smart Debt Coach</h1>
+            <h1 className="text-sm font-semibold leading-tight text-white">Smart Debt Coach</h1>
             <p className="text-xs leading-tight text-slate-400">Answers tailored to your ClearDebt plan</p>
           </div>
-          <div className="ml-auto flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700">
+          <div className="ml-auto flex items-center gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-1 text-xs font-medium text-emerald-400">
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
             Online
           </div>
@@ -154,11 +154,11 @@ export default function ChatPage() {
               <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-500 text-white shadow-sm">
                 <TbSparkles className="h-6 w-6" />
               </div>
-              <p className="text-sm font-medium text-slate-700">How can I help today?</p>
+              <p className="text-sm font-medium text-slate-100">How can I help today?</p>
               <p className="text-xs leading-relaxed text-slate-400">
                 Ask about your payoff timeline, budget, or upcoming events. Try{" "}
                 <button
-                  className="text-emerald-600 underline underline-offset-2 hover:text-emerald-700"
+                  className="text-emerald-400 underline underline-offset-2 hover:text-emerald-300"
                   onClick={() => setInput("How much extra can I put toward debt this month without missing anything important?")}
                 >
                   "How much extra can I put toward debt this month?"
@@ -174,7 +174,7 @@ export default function ChatPage() {
               </div>
             : <div key={idx} className="flex items-start gap-3">
                 <AssistantAvatar />
-                <p className="max-w-[75%] rounded-2xl rounded-tl-sm border border-slate-200 bg-white px-4 py-2.5 text-sm leading-relaxed text-slate-800 shadow-sm">
+                <p className="max-w-[75%] rounded-2xl rounded-tl-sm border border-slate-700 bg-slate-700 px-4 py-2.5 text-sm leading-relaxed text-slate-100 shadow-sm">
                   {m.content || <span className="text-slate-400">…</span>}
                 </p>
               </div>,
@@ -187,9 +187,9 @@ export default function ChatPage() {
         </main>
 
         {/* ── Footer ───────────────────────────────────── */}
-        <footer className="shrink-0 border-t border-slate-200 bg-white px-4 py-3">
-          {error && <div className="mb-2.5 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600">{error}</div>}
-          <div className="flex items-end gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 transition-shadow focus-within:border-emerald-400 focus-within:ring-2 focus-within:ring-emerald-100">
+        <footer className="shrink-0 border-t border-slate-700 bg-slate-800 px-4 py-3">
+          {error && <div className="mb-2.5 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-xs text-red-400">{error}</div>}
+          <div className="flex items-end gap-2 rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 transition-shadow focus-within:border-emerald-400 focus-within:ring-2 focus-within:ring-emerald-500/20">
             <textarea
               ref={textareaRef}
               rows={1}
@@ -197,12 +197,12 @@ export default function ChatPage() {
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder="Ask about your payoff timeline, budget, or an upcoming event…"
-              className="max-h-[140px] min-h-[24px] flex-1 resize-none bg-transparent py-0.5 text-sm text-slate-800 outline-none placeholder:text-slate-400"
+              className="max-h-[140px] min-h-[24px] flex-1 resize-none bg-transparent py-0.5 text-sm text-slate-100 outline-none placeholder:text-slate-500"
             />
             <button
               onClick={handleSend}
               disabled={!canSend}
-              className="mb-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-500 text-white shadow-sm transition-all hover:bg-emerald-600 active:scale-95 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none"
+              className="mb-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-500 text-white shadow-sm transition-all hover:bg-emerald-600 active:scale-95 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:shadow-none disabled:text-slate-500"
               aria-label="Send message"
             >
               {isStreaming ?
@@ -210,9 +210,9 @@ export default function ChatPage() {
               : <TbSend className="h-4 w-4" />}
             </button>
           </div>
-          <p className="mt-1.5 text-center text-[11px] text-slate-400">
-            Press <kbd className="rounded bg-slate-100 px-1 py-0.5 font-mono text-[10px] text-slate-500">Enter</kbd> to send &nbsp;·&nbsp;{" "}
-            <kbd className="rounded bg-slate-100 px-1 py-0.5 font-mono text-[10px] text-slate-500">Shift+Enter</kbd> for new line
+          <p className="mt-1.5 text-center text-[11px] text-slate-500">
+            Press <kbd className="rounded bg-slate-700 px-1 py-0.5 font-mono text-[10px] text-slate-400">Enter</kbd> to send &nbsp;·&nbsp;{" "}
+            <kbd className="rounded bg-slate-700 px-1 py-0.5 font-mono text-[10px] text-slate-400">Shift+Enter</kbd> for new line
           </p>
         </footer>
       </div>

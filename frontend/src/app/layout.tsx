@@ -24,7 +24,7 @@ export default async function RootLayout({
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Onest:wght@100..900&display=swap" />
       </head>
-      <body className="h-dvh flex bg-white selection:bg-green-100 selection:text-green-900">
+      <body className="h-dvh flex bg-slate-900 text-slate-100 selection:bg-green-500/30 selection:text-green-200">
         <GlobalProvider>
           {hasToken && hasCompletedOnboarding && <Navbar />}
           <div className="grow overflow-auto">{children}</div>

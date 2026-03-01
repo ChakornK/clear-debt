@@ -41,7 +41,7 @@ interface CalendarEvent {
   label: string;
   amount: number;
   is_income?: boolean;
-  source?: "manual" | "transaction" | "generated"; 
+  source?: "manual" | "transaction" | "generated";
 }
 
 interface TypeConfigEntry {
@@ -79,16 +79,16 @@ const DAYS_OF_WEEK = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
 const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"] as const;
 
 const TYPE_CONFIG: Record<string, TypeConfigEntry> = {
-  "Housing":        { dot: "bg-emerald-400", Icon: TbHome,             badge: "bg-emerald-100 text-emerald-700", iconClass: "text-emerald-500" },
-  "Food & Dining":  { dot: "bg-orange-400",  Icon: TbToolsKitchen2,    badge: "bg-orange-100 text-orange-700",   iconClass: "text-orange-500"  },
-  "Transportation": { dot: "bg-blue-400",    Icon: TbCar,              badge: "bg-blue-100 text-blue-700",       iconClass: "text-blue-500"    },
-  "Healthcare":     { dot: "bg-rose-400",    Icon: TbBuildingHospital, badge: "bg-rose-100 text-rose-700",       iconClass: "text-rose-500"    },
-  "Entertainment":  { dot: "bg-purple-400",  Icon: TbDeviceTv,         badge: "bg-purple-100 text-purple-700",   iconClass: "text-purple-500"  },
-  "Shopping":       { dot: "bg-amber-400",   Icon: TbShoppingBag,      badge: "bg-amber-100 text-amber-700",     iconClass: "text-amber-500"   },
-  "Debt Payments":  { dot: "bg-red-400",     Icon: TbCreditCard,       badge: "bg-red-100 text-red-700",         iconClass: "text-red-500"     },
-  "Income":         { dot: "bg-green-400",   Icon: TbReportMoney,      badge: "bg-green-100 text-green-700",     iconClass: "text-green-500"   },
-  "Other":          { dot: "bg-slate-400",   Icon: TbQuestionMark,     badge: "bg-slate-100 text-slate-700",     iconClass: "text-slate-400"   },
-  "default":        { dot: "bg-slate-400",   Icon: TbQuestionMark,     badge: "bg-slate-100 text-slate-700",     iconClass: "text-slate-400"   },
+  "Housing": { dot: "bg-emerald-400", Icon: TbHome, badge: "bg-emerald-500/20 text-emerald-400", iconClass: "text-emerald-500" },
+  "Food & Dining": { dot: "bg-orange-400", Icon: TbToolsKitchen2, badge: "bg-orange-500/20 text-orange-400", iconClass: "text-orange-500" },
+  "Transportation": { dot: "bg-blue-400", Icon: TbCar, badge: "bg-blue-500/20 text-blue-400", iconClass: "text-blue-500" },
+  "Healthcare": { dot: "bg-rose-400", Icon: TbBuildingHospital, badge: "bg-rose-500/20 text-rose-400", iconClass: "text-rose-500" },
+  "Entertainment": { dot: "bg-purple-400", Icon: TbDeviceTv, badge: "bg-purple-500/20 text-purple-400", iconClass: "text-purple-500" },
+  "Shopping": { dot: "bg-amber-400", Icon: TbShoppingBag, badge: "bg-amber-500/20 text-amber-400", iconClass: "text-amber-500" },
+  "Debt Payments": { dot: "bg-red-400", Icon: TbCreditCard, badge: "bg-red-500/20 text-red-400", iconClass: "text-red-500" },
+  "Income": { dot: "bg-green-400", Icon: TbReportMoney, badge: "bg-green-500/20 text-green-400", iconClass: "text-green-500" },
+  "Other": { dot: "bg-slate-400", Icon: TbQuestionMark, badge: "bg-slate-700 text-slate-400", iconClass: "text-slate-400" },
+  "default": { dot: "bg-slate-400", Icon: TbQuestionMark, badge: "bg-slate-700 text-slate-400", iconClass: "text-slate-400" },
 };
 
 const POPOVER_WIDTH = 320;
@@ -146,8 +146,15 @@ export interface AddExpenseFields {
 }
 
 const EXPENSE_TYPES: Exclude<EventType, "default">[] = [
-  "Housing", "Food & Dining", "Transportation", "Healthcare",
-  "Entertainment", "Shopping", "Debt Payments", "Other",
+  "Housing",
+  "Food & Dining",
+  "Transportation",
+  "Healthcare",
+  "Entertainment",
+  "Shopping",
+  "Debt Payments",
+  "Income",
+  "Other",
 ];
 
 function AddExpenseForm({
@@ -181,69 +188,54 @@ function AddExpenseForm({
   const labelClass = "mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500";
 
   return (
-    <div className="space-y-4">
-      <div>
-        <label className={labelClass}>Date</label>
-        <input type="date" value={fields.date} onChange={(e) => update("date", e.target.value)} className={inputClass} />
-      </div>
-      <div>
-        <label className={labelClass}>Label</label>
+    <div className="space-y-4 rounded-xl border border-slate-700 bg-slate-900/50 p-4">
+      <label className="block">
+        <span className="mb-1 block text-xs font-bold uppercase tracking-wider text-slate-400">Description</span>
         <input
           type="text"
-          placeholder="e.g. Grocery Run"
+          className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white focus:border-green-500 focus:outline-none"
           value={fields.label}
           onChange={(e) => update("label", e.target.value)}
-          className={inputClass}
+          placeholder="What's the expense for?"
         />
-      </div>
-      <div>
-        <label className={labelClass}>Amount</label>
-        <div className="relative">
-          <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-sm text-slate-400">$</span>
-          <input
-            type="number"
-            min="0"
-            step="0.01"
-            placeholder="0.00"
-            value={fields.amount}
-            onChange={(e) => update("amount", e.target.value)}
-            className={`${inputClass} pl-7`}
-          />
-        </div>
-      </div>
-      <div>
-        <label className={labelClass}>Type</label>
-        <div className="grid grid-cols-2 gap-2">
-          {EXPENSE_TYPES.map((t) => {
-            const cfg = TYPE_CONFIG[t];
-            const isActive = fields.type === t;
-            return (
-              <button
-                key={t}
-                type="button"
-                onClick={() => update("type", t)}
-                className={[
-                  "flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-semibold capitalize transition-colors",
-                  isActive ? `${cfg.badge} border-transparent` : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50",
-                ].join(" ")}
-              >
-                <cfg.Icon className="h-3.5 w-3.5" />
+      </label>
+
+      <div className="grid grid-cols-2 gap-3">
+        <label>
+          <span className="mb-1 block text-xs font-bold uppercase tracking-wider text-slate-400">Amount</span>
+          <div className="relative">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">$</span>
+            <input
+              type="number"
+              className="w-full rounded-lg border border-slate-700 bg-slate-800 py-2 pl-7 pr-3 text-sm text-white focus:border-green-500 focus:outline-none"
+              value={fields.amount}
+              onChange={(e) => update("amount", e.target.value)}
+              placeholder="0.00"
+            />
+          </div>
+        </label>
+        <label>
+          <span className="mb-1 block text-xs font-bold uppercase tracking-wider text-slate-400">Category</span>
+          <select
+            className="w-full appearance-none rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white focus:border-green-500 focus:outline-none"
+            value={fields.type}
+            onChange={(e) => update("type", e.target.value as any)}
+          >
+            {EXPENSE_TYPES.map((t) => (
+              <option key={t} value={t}>
                 {t}
-              </button>
-            );
-          })}
-        </div>
+              </option>
+            ))}
+          </select>
+        </label>
       </div>
 
-      {/* Delete button shown only in edit mode */}
-      {showDelete && onDelete && (
+      {showDelete && (
         <button
-          type="button"
           onClick={onDelete}
-          className="flex w-full items-center justify-center gap-2 rounded-xl border border-red-200 bg-red-50 py-2.5 text-sm font-bold text-red-500 transition-colors hover:bg-red-100"
+          className="flex w-full items-center justify-center gap-2 rounded-lg border border-red-500/20 bg-red-500/10 py-2 text-xs font-bold text-red-400 transition hover:bg-red-500/20"
         >
-          <TbTrash className="h-4 w-4" />
-          Delete Event
+          <TbTrash /> Delete Expense
         </button>
       )}
     </div>
@@ -263,7 +255,9 @@ function EventPopover({ anchor, events, year, month, day, onClose, onAddExpense,
     setPos(calcPopoverPosition(cellRect, popoverHeight));
   }, [anchor]);
 
-  useEffect(() => { reposition(); }, [reposition]);
+  useEffect(() => {
+    reposition();
+  }, [reposition]);
   useEffect(() => {
     window.addEventListener("scroll", reposition, true);
     window.addEventListener("resize", reposition);
@@ -282,16 +276,20 @@ function EventPopover({ anchor, events, year, month, day, onClose, onAddExpense,
   }, [anchor, onClose]);
 
   const dateLabel = new Date(year, month - 1, day).toLocaleDateString("en-US", {
-    weekday: "long", month: "short", day: "numeric",
+    weekday: "long",
+    month: "short",
+    day: "numeric",
   });
 
-  const boxStyle: React.CSSProperties = pos
-    ? { position: "absolute", top: pos.top, left: pos.left, width: POPOVER_WIDTH }
+  const boxStyle: React.CSSProperties =
+    pos ?
+      { position: "absolute", top: pos.top, left: pos.left, width: POPOVER_WIDTH }
     : { position: "absolute", visibility: "hidden", top: 0, left: 0, width: POPOVER_WIDTH };
 
   const arrowBoxSize = ARROW_SIZE * 2;
-  const arrowStyle: React.CSSProperties = pos
-    ? {
+  const arrowStyle: React.CSSProperties =
+    pos ?
+      {
         position: "absolute",
         width: arrowBoxSize,
         height: arrowBoxSize,
@@ -304,19 +302,19 @@ function EventPopover({ anchor, events, year, month, day, onClose, onAddExpense,
     <div
       ref={popoverRef}
       style={boxStyle}
-      className="z-9999 rounded-2xl border border-green-200 bg-white p-5 shadow-2xl ring-1 ring-black/5"
+      className="z-9999 rounded-2xl border border-green-700 bg-slate-800 p-5 shadow-2xl ring-1 ring-black/5"
       onClick={(e) => e.stopPropagation()}
     >
       {/* Arrow */}
       <div
         style={arrowStyle}
-        className={["bg-white border-green-200 rotate-45", pos?.arrowSide === "top" ? "border-l border-t" : "border-r border-b"].join(" ")}
+        className={["bg-slate-800 border-green-700 rotate-45", pos?.arrowSide === "top" ? "border-l border-t" : "border-r border-b"].join(" ")}
       />
 
       {/* Header */}
       <div className="mb-4 flex items-center justify-between">
-        <h3 className="font-bold text-slate-900">{dateLabel}</h3>
-        <span className="rounded bg-green-100 px-2 py-1 text-[10px] font-bold uppercase text-green-700">
+        <h3 className="font-bold text-white">{dateLabel}</h3>
+        <span className="rounded bg-green-500/20 px-2 py-1 text-[10px] font-bold uppercase text-green-400">
           {events.length} Event{events.length !== 1 ? "s" : ""}
         </span>
       </div>
@@ -328,19 +326,17 @@ function EventPopover({ anchor, events, year, month, day, onClose, onAddExpense,
           return (
             <div
               key={i}
-              className={`flex items-start gap-3 rounded-xl border p-3 ${ev.is_income ? "border-green-200 bg-green-50" : "border-slate-100 bg-slate-50"}`}
+              className={`flex items-start gap-3 rounded-xl border p-3 ${ev.is_income ? "border-green-700 bg-green-900/20" : "border-slate-700 bg-slate-900/20"}`}
             >
-              <cfg.Icon className={`mt-0.5 h-5 w-5 shrink-0 ${ev.is_income ? "text-green-500" : cfg.iconClass}`} />
+              <cfg.Icon className={`mt-0.5 h-5 w-5 shrink-0 ${ev.is_income ? "text-green-400" : cfg.iconClass}`} />
               <div className="min-w-0 flex-1">
                 <div className="flex items-center justify-between gap-2">
-                  <p className="truncate text-sm font-semibold">{ev.label}</p>
-                  {ev.is_income && (
-                    <span className="shrink-0 rounded bg-green-500 px-1 py-0.5 text-[8px] font-bold uppercase text-white">Income</span>
-                  )}
+                  <p className="truncate text-sm font-semibold text-white">{ev.label}</p>
+                  {ev.is_income && <span className="shrink-0 rounded bg-green-500 px-1 py-0.5 text-[8px] font-bold uppercase text-white">Income</span>}
                 </div>
-                <p className="mt-0.5 flex items-center gap-1.5 text-xs text-slate-500">
+                <p className="mt-0.5 flex items-center gap-1.5 text-xs text-slate-400">
                   <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${cfg.badge}`}>{ev.type}</span>
-                  <span className={ev.is_income ? "font-bold text-green-600" : ""}>
+                  <span className={ev.is_income ? "font-bold text-green-400" : ""}>
                     {ev.is_income ? "+" : ""}${ev.amount.toFixed(2)}
                   </span>
                 </p>
@@ -351,7 +347,7 @@ function EventPopover({ anchor, events, year, month, day, onClose, onAddExpense,
                   onEditEvent(ev);
                   onClose();
                 }}
-                className="shrink-0 rounded-lg border border-slate-200 px-2 py-1 text-[10px] font-bold text-slate-500 hover:bg-slate-100 transition-colors"
+                className="shrink-0 rounded-lg border border-slate-700 px-2 py-1 text-[10px] font-bold text-slate-400 hover:bg-slate-700 transition-colors"
               >
                 Edit
               </button>
@@ -380,7 +376,7 @@ function EventPopover({ anchor, events, year, month, day, onClose, onAddExpense,
 
 export default function Calendar() {
   const [year, setYear] = useState<number>(new Date().getFullYear());
-  const [month, setMonth] = useState<number>(new Date().getMonth() + 1);
+  const [month, setMonth] = useState<number>(new Date().getMonth()); // 0-indexed for Date object
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [popover, setPopover] = useState<PopoverState | null>(null);
@@ -409,25 +405,30 @@ export default function Calendar() {
     }
   }, []);
 
-  useEffect(() => { fetchEvents(); }, [fetchEvents]);
+  useEffect(() => {
+    fetchEvents();
+  }, [fetchEvents]);
 
   const eventMap = useMemo(() => buildEventMap(events), [events]);
 
   function prevMonth(): void {
-    if (month === 1) { setYear((y) => y - 1); setMonth(12); }
-    else setMonth((m) => m - 1);
+    setMonth((m) => (m === 0 ? 11 : m - 1));
+    if (month === 0) setYear((y) => y - 1);
     setPopover(null);
   }
   function nextMonth(): void {
-    if (month === 12) { setYear((y) => y + 1); setMonth(1); }
-    else setMonth((m) => m + 1);
+    setMonth((m) => (m === 11 ? 0 : m + 1));
+    if (month === 11) setYear((y) => y + 1);
     setPopover(null);
   }
 
   const closePopover = useCallback((): void => setPopover(null), []);
 
   function handleDayClick(day: number, e: React.MouseEvent<HTMLDivElement>): void {
-    if (popover?.day === day) { setPopover(null); return; }
+    if (popover?.day === day) {
+      setPopover(null);
+      return;
+    }
     setPopover({ day, anchor: e.currentTarget });
   }
 
@@ -443,12 +444,14 @@ export default function Calendar() {
     try {
       await apiFetch("/api/calendar", {
         method: "POST",
-        body: JSON.stringify([{
-          date: pendingExpense.date,
-          type: pendingExpense.type,
-          label: pendingExpense.label,
-          amount: parseFloat(pendingExpense.amount) || 0,
-        }]),
+        body: JSON.stringify([
+          {
+            date: pendingExpense.date,
+            type: pendingExpense.type,
+            label: pendingExpense.label,
+            amount: parseFloat(pendingExpense.amount) || 0,
+          },
+        ]),
       });
       fetchEvents();
     } catch (err) {
@@ -480,12 +483,14 @@ export default function Calendar() {
       // Save updated event
       await apiFetch("/api/calendar", {
         method: "POST",
-        body: JSON.stringify([{
-          date: editFields.date,
-          type: editFields.type,
-          label: editFields.label,
-          amount: parseFloat(editFields.amount) || 0,
-        }]),
+        body: JSON.stringify([
+          {
+            date: editFields.date,
+            type: editFields.type,
+            label: editFields.label,
+            amount: parseFloat(editFields.amount) || 0,
+          },
+        ]),
       });
       fetchEvents();
     } catch (err) {
@@ -511,142 +516,181 @@ export default function Calendar() {
   }
 
   // ── CALENDAR GRID ────────────────────────────────────────────────────────────
-  const startWeekday = firstWeekday(year, month);
-  const totalDays = daysInMonth(year, month);
-  const prevTail = Array.from({ length: startWeekday }, (_, i) => daysInPrevMonth(year, month) - startWeekday + 1 + i);
-  const currDays = Array.from({ length: totalDays }, (_, i) => i + 1);
-  const totalCells = prevTail.length + totalDays;
-  const nextCount = totalCells % 7 === 0 ? 0 : 7 - (totalCells % 7);
-  const nextHead = Array.from({ length: nextCount }, (_, i) => i + 1);
+  const today = useMemo(() => new Date(), []);
 
-  const monthPrefix = `${year}-${String(month).padStart(2, "0")}`;
-  const monthEvents = events.filter((ev) => ev.date.startsWith(monthPrefix));
-  const totalSpending = monthEvents.filter((e) => !e.is_income && e.source === "manual").reduce((s, ev) => s + ev.amount, 0);
-  const totalActual = monthEvents.filter((e) => !e.is_income && e.source === "transaction").reduce((s, ev) => s + ev.amount, 0);
-  const totalIncome = monthEvents.filter((e) => e.is_income && e.source !== "transaction").reduce((s, ev) => s + ev.amount, 0);
-  const uniqueDays = new Set(monthEvents.map((e) => e.date.split("T")[0])).size;
+  const days = useMemo(() => {
+    const daysArr: { day: number; month: number; year: number }[] = [];
+    const firstDayOfMonth = new Date(year, month, 1);
+    const lastDayOfMonth = new Date(year, month + 1, 0);
+    const daysInCurrentMonth = lastDayOfMonth.getDate();
+    const firstWeekdayOfMonth = firstDayOfMonth.getDay(); // 0 for Sunday, 1 for Monday, etc.
 
-  const selectedEvents: CalendarEvent[] = popover ? (eventMap[toDateStr(year, month, popover.day)] ?? []) : [];
+    // Days from previous month
+    const daysInPrev = new Date(year, month, 0).getDate();
+    for (let i = firstWeekdayOfMonth - 1; i >= 0; i--) {
+      daysArr.push({ day: daysInPrev - i, month: month === 0 ? 11 : month - 1, year: month === 0 ? year - 1 : year });
+    }
+
+    // Days in current month
+    for (let i = 1; i <= daysInCurrentMonth; i++) {
+      daysArr.push({ day: i, month: month, year: year });
+    }
+
+    // Days from next month
+    const remainingCells = 42 - daysArr.length; // Ensure 6 rows (6 * 7 = 42 cells)
+    for (let i = 1; i <= remainingCells; i++) {
+      daysArr.push({ day: i, month: month === 11 ? 0 : month + 1, year: month === 11 ? year + 1 : year });
+    }
+    return daysArr;
+  }, [year, month]);
+
+  const monthEvents = events.filter((ev) => {
+    const eventDate = new Date(ev.date);
+    return eventDate.getFullYear() === year && eventDate.getMonth() === month;
+  });
+
+  const monthSpendingTotal = monthEvents.filter((e) => !e.is_income).reduce((s, ev) => s + ev.amount, 0);
+  const monthIncomeTotal = monthEvents.filter((e) => e.is_income).reduce((s, ev) => s + ev.amount, 0);
+  const monthPredictedTotal = monthSpendingTotal; // Placeholder for now
 
   return (
     <>
-      <main className="min-h-dvh mx-auto flex max-w-7xl flex-col items-stretch bg-white p-6 text-slate-900 lg:p-10">
+      <div className="flex h-screen flex-col bg-slate-900 text-white">
         {/* Header */}
-        <div className="mb-8 flex flex-col justify-between gap-4 md:flex-row md:items-center">
-          <div>
-            <h1 className="text-3xl font-black tracking-tight">Financial Calendar</h1>
-            <p className="text-slate-500">Manage your scheduled expenses and subscriptions</p>
+        <header className="flex h-16 shrink-0 items-center justify-between border-b border-slate-800 bg-slate-800/50 px-6 backdrop-blur-md">
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-1 rounded-lg bg-slate-700/50 p-1">
+              <button onClick={prevMonth} className="flex h-8 w-8 items-center justify-center rounded hover:bg-slate-600 transition">
+                <TbChevronLeft />
+              </button>
+              <button onClick={nextMonth} className="flex h-8 w-8 items-center justify-center rounded hover:bg-slate-600 transition">
+                <TbChevronRight />
+              </button>
+            </div>
+            <h1 className="text-xl font-bold">
+              {MONTH_NAMES[month]} {year}
+            </h1>
           </div>
-          <div className="justify-center-safe flex w-64 items-center rounded-xl border border-slate-100 bg-white p-1 shadow-sm">
-            <button className="cursor-pointer rounded-lg p-2 transition-colors hover:bg-slate-100" onClick={prevMonth}>
-              <TbChevronLeft className="h-5 w-5" />
-            </button>
-            <span className="min-w-0 shrink grow whitespace-nowrap text-center font-bold">
-              {MONTH_NAMES[month - 1]} {year}
-            </span>
-            <button className="cursor-pointer rounded-lg p-2 transition-colors hover:bg-slate-100" onClick={nextMonth}>
-              <TbChevronRight className="h-5 w-5" />
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => {
+                const d = new Date();
+                setYear(d.getFullYear());
+                setMonth(d.getMonth());
+              }}
+              className="rounded-lg border border-slate-700 bg-slate-800 px-4 py-2 text-sm font-bold shadow-sm hover:bg-slate-700 transition"
+            >
+              Today
             </button>
           </div>
+        </header>
+
+        {/* Days header */}
+        <div className="grid grid-cols-7 border-b border-slate-800 bg-slate-800/20 font-bold uppercase tracking-wider text-slate-400">
+          {DAYS_OF_WEEK.map((d) => (
+            <div key={d} className="py-2 text-center text-[10px]">
+              {d}
+            </div>
+          ))}
         </div>
 
-        {/* Calendar Grid */}
-        <div className="flex grow flex-col items-stretch overflow-hidden rounded-xl border border-slate-100 bg-white shadow-sm">
-          <div className="grid grid-cols-7 border-b border-slate-100 bg-slate-50">
-            {DAYS_OF_WEEK.map((d) => (
-              <div key={d} className="py-4 text-center text-xs font-bold uppercase text-slate-500">{d}</div>
-            ))}
-          </div>
-          <div className="min-h-83.75 grid grow grid-cols-7">
-            {prevTail.map((day) => (
-              <div key={`prev-${day}`} className="border-b border-r border-slate-100 bg-slate-50/50 p-4 text-slate-300">{day}</div>
-            ))}
-            {currDays.map((day) => {
-              const dayEvents = eventMap[toDateStr(year, month, day)] ?? [];
-              const isSelected = popover?.day === day;
-              return (
+        {/* Grid */}
+        <div className="grid flex-1 grid-cols-7 overflow-hidden">
+          {days.map((d, i) => {
+            const isToday = d.year === today.getFullYear() && d.month === today.getMonth() && d.day === today.getDate();
+            const isCurrentMonth = d.month === month;
+            const dayEvents = eventMap[toDateStr(d.year, d.month + 1, d.day)] || []; // Adjust month for toDateStr
+            const incomeEvents = dayEvents.filter((ev) => ev.is_income);
+            const spendingEvents = dayEvents.filter((ev) => !ev.is_income);
+
+            const incomeTotal = incomeEvents.reduce((acc, ev) => acc + ev.amount, 0);
+            const spendingTotal = spendingEvents.reduce((acc, ev) => acc + ev.amount, 0);
+
+            return (
+              <div
+                key={i}
+                className={`group relative flex flex-col border-b border-r border-slate-800 p-2 transition-colors
+                ${!isCurrentMonth ? "bg-slate-900/30 text-slate-600" : "bg-slate-900"}
+                hover:bg-slate-800/50
+              `}
+                onClick={(e) => {
+                  setPopover({ day: d.day, anchor: e.currentTarget });
+                }}
+              >
                 <div
-                  key={`curr-${day}`}
-                  onClick={(e) => handleDayClick(day, e)}
-                  className={[
-                    "relative cursor-pointer border-b border-r border-slate-100 p-4 font-medium transition-colors",
-                    isSelected ? "bg-green-50" : "hover:bg-slate-50",
-                  ].join(" ")}
+                  className={`flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold
+                  ${isToday ? "bg-green-500 text-white" : ""}
+                `}
                 >
-                  <span className={isSelected ? "font-bold text-green-600" : ""}>{day}</span>
-                  {dayEvents.length > 0 && (
-                    <div className="mt-1 flex flex-wrap gap-1">
-                      {dayEvents.slice(0, 4).map((ev, i) => (
-                        <div key={i} className={`size-1.5 rounded-full ${ev.is_income ? "bg-green-400" : getTypeConfig(ev.type).dot}`} />
-                      ))}
-                    </div>
-                  )}
+                  {d.day}
                 </div>
-              );
-            })}
-            {nextHead.map((day, idx) => (
-              <div key={`next-${day}`} className={`bg-slate-50/50 p-4 text-slate-300 ${idx < nextHead.length - 1 ? "border-r border-slate-100" : ""}`}>
-                {day}
+
+                {/* Event indicators */}
+                <div className="mt-1 flex-1 space-y-0.5 overflow-hidden">
+                  {dayEvents.slice(0, 3).map((ev, idx) => {
+                    const cfg = getTypeConfig(ev.type);
+                    return (
+                      <div
+                        key={idx}
+                        className={`flex items-center gap-1.5 rounded-md px-1.5 py-0.5 text-[9px] font-bold leading-tight
+                        ${ev.is_income ? "bg-green-500/10 text-green-400" : "bg-slate-800 text-slate-300"}
+                      `}
+                      >
+                        {!ev.is_income && <div className={`h-1 w-1 shrink-0 rounded-full ${cfg.dot}`} />}
+                        <span className="truncate">{ev.label}</span>
+                        <span className="ml-auto shrink-0">${ev.amount}</span>
+                      </div>
+                    );
+                  })}
+                  {dayEvents.length > 3 && <div className="text-right text-[8px] font-bold text-slate-500">+{dayEvents.length - 3} more</div>}
+                </div>
+
+                {/* Day totals */}
+                <div className="mt-auto flex justify-between gap-1 text-[9px] font-black uppercase">
+                  {incomeTotal > 0 && <span className="text-green-400">+${incomeTotal}</span>}
+                  {spendingTotal > 0 && <span className="text-red-400">-${spendingTotal}</span>}
+                </div>
+
+                {/* Add button hover */}
+                <div className="absolute right-2 top-2 hidden group-hover:block transition-all transform scale-90">
+                  <div className="flex h-5 w-5 items-center justify-center rounded-full bg-green-500 text-white shadow-lg">
+                    <TbPlus className="h-3 w-3" />
+                  </div>
+                </div>
               </div>
-            ))}
-          </div>
+            );
+          })}
         </div>
 
-        {/* Summary Bar */}
-        <div className="mt-8 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          <div className="rounded-xl border border-slate-100 bg-white p-6 shadow-sm">
-            <div className="mb-2 flex items-center gap-3">
-              <TbReportMoney className="h-5 w-5 text-green-600" />
-              <h4 className="font-bold">Monthly Income</h4>
+        {/* Bottom info: Monthly totals */}
+        <div className="flex h-20 shrink-0 items-center justify-between border-t border-slate-800 bg-slate-800 px-10 shadow-[0_-4px_10px_rgba(0,0,0,0.1)]">
+          <div className="flex gap-10">
+            <div className="flex flex-col">
+              <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Total Spending</span>
+              <span className="text-2xl font-black text-red-400">${monthSpendingTotal.toLocaleString()}</span>
             </div>
-            <p className="text-3xl font-black text-green-600">+${totalIncome.toFixed(2)}</p>
-            <p className="mt-1 text-sm text-slate-500">For {MONTH_NAMES[month - 1]} {year}</p>
+            <div className="flex flex-col border-l border-slate-700 pl-10">
+              <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Predicted for Month</span>
+              <span className="text-2xl font-black text-slate-300">${monthPredictedTotal.toLocaleString()}</span>
+            </div>
           </div>
-          <div className="rounded-xl border border-rose-100 bg-rose-50 p-6 shadow-sm">
-            <div className="mb-2 flex items-center gap-3">
-              <TbCreditCard className="h-5 w-5 text-rose-600" />
-              <h4 className="font-bold">Monthly Spending</h4>
-            </div>
-            <p className="text-3xl font-black text-rose-600">-${totalActual.toFixed(2)}</p>
-            <p className="mt-1 text-sm text-slate-500">
-              Actual transactions
-              {totalSpending > 0 && (
-                <span className="ml-2 text-slate-400">· ${totalSpending.toFixed(2)} estimated</span>
-              )}
-            </p>
-          </div>
-          <div className="rounded-xl border border-slate-100 bg-white p-6 shadow-sm">
-            <div className="mb-2 flex items-center gap-3">
-              <TbCalendarEvent className="h-5 w-5 text-slate-400" />
-              <h4 className="font-bold">Events This Month</h4>
-            </div>
-            <p className="text-3xl font-black text-slate-700">{monthEvents.length}</p>
-            <p className="mt-1 text-sm text-slate-500">Across {uniqueDays} day{uniqueDays !== 1 ? "s" : ""}</p>
-          </div>
-          <div className="hidden rounded-xl border border-slate-100 bg-white p-6 shadow-sm lg:block">
-            <div className="mb-2 flex items-center gap-3">
-              <TbList className="h-5 w-5 text-slate-400" />
-              <h4 className="font-bold">Legend</h4>
-            </div>
-            <div className="ml-1 mt-1 space-y-1.5">
-              {(Object.entries(TYPE_CONFIG) as [EventType, TypeConfigEntry][])
-                .filter(([k]) => k !== "default")
-                .map(([type, cfg]) => (
-                  <div key={type} className="flex items-center gap-2 text-sm text-slate-600">
-                    <div className={`size-2 rounded-full ${cfg.dot}`} />
-                    <span className="capitalize">{type}</span>
-                  </div>
-                ))}
+          <div className="flex items-center gap-4">
+            <div className="h-10 w-px bg-slate-700 mx-2" />
+            <div className="flex flex-col text-right">
+              <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Month Outlook</span>
+              <span className={`text-xl font-black ${monthSpendingTotal < 2000 ? "text-green-400" : "text-amber-400"}`}>
+                {monthSpendingTotal < 2000 ? "WELL UNDER BUDGET" : "WATCHING CAREFULLY"}
+              </span>
             </div>
           </div>
         </div>
-      </main>
+      </div>
 
       {/* Day popover */}
       {popover && (
         <EventPopover
           anchor={popover.anchor}
-          events={selectedEvents}
+          events={popover ? (eventMap[toDateStr(year, month + 1, popover.day)] ?? []) : []}
           year={year}
           month={month}
           day={popover.day}
@@ -667,10 +711,7 @@ export default function Calendar() {
         onConfirm={handleAddConfirm}
         onCancel={() => setModalOpen(false)}
       >
-        <AddExpenseForm
-          date={modalDate}
-          onChange={(fields) => setPendingExpense(fields)}
-        />
+        <AddExpenseForm date={modalDate} onChange={(fields) => setPendingExpense(fields)} />
       </Modal>
 
       {/* Edit Expense modal */}
