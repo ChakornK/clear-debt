@@ -1,5 +1,6 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.sessions import SessionMiddleware
 from models import ExchangeTokenRequest, SaveDebtsRequest, GeneratePlanRequest, ChatRequest, CalendarEvent
 from plaid_client import create_link_token, exchange_public_token, get_accounts, get_transactions, get_liabilities
 from snowflake_client import (save_access_token, get_access_token, save_debts,
@@ -10,12 +11,23 @@ from math_engine import calc_all_strategies
 from pydantic import BaseModel
 from typing import List
 from datetime import datetime, timedelta
-import random
+import random, os
+from auth import router as auth_router
 
 app = FastAPI(title="ClearDebt API")
 
+# ── MIDDLEWARE ─────────────────────────────────────────
 app.add_middleware(CORSMiddleware,
-    allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+    allow_origins=[os.getenv("FRONTEND_URL", "http://localhost:3000")], 
+    allow_methods=["*"], 
+    allow_headers=["*"],
+    allow_credentials=True)
+
+app.add_middleware(SessionMiddleware, secret_key=os.getenv("SECRET_KEY", "fallback_secret"))
+
+# ── ROUTES ─────────────────────────────────────────────
+app.include_router(auth_router)
+
 
 # ── PLAID ROUTES ──────────────────────────────────────
 
@@ -111,14 +123,42 @@ async def generate_plan_route(req: GeneratePlanRequest):
 
 # ── CHAT ROUTES ───────────────────────────────────────
 
+
 @app.post("/api/chat")
 async def chat_route(req: ChatRequest):
     try:
         debts = get_debts(req.user_id)
+        if not debts:
+            return {"reply": "No debts found. Please add your debts first so I can give you specific advice."}
+
+        # Load existing plan if available
+        plan = {}
+        try:
+            conn = get_connection()
+            cur = conn.cursor()
+            cur.execute("""
+                SELECT PLAN_JSON FROM REPAYMENT_PLANS
+                WHERE USER_ID = %s
+                ORDER BY CREATED_AT DESC LIMIT 1
+            """, (req.user_id,))
+            row = cur.fetchone()
+            cur.close(); conn.close()
+            if row:
+                plan = json.loads(row[0])
+        except:
+            pass
+
         history = [m.dict() for m in req.history]
-        history.append({"role": "user", "content": req.message})
-        reply = chat(debts, {}, history)
+
+        try:
+            reply = chat_with_gemini(debts, plan, history, req.message)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Gemini error: {str(e)}")
+
         return {"reply": reply}
+
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -130,11 +170,15 @@ import random
 @app.get("/api/dashboard/{user_id}")
 async def get_dashboard(user_id: str):
     try:
+        access_token = get_access_token(user_id)
+        if not access_token:
+            raise HTTPException(status_code=404, detail="No linked account found")
+        
         # Pull real data from Snowflake
         debts = get_debts(user_id)
         spending = get_spending_summary(user_id)
         events = get_calendar_events(user_id)
-        transactions = get_transactions_raw(user_id)
+        transactions = get_transactions(access_token, user_id)
 
         # ── DEBT PROGRESS ──────────────────────────────
         total_debt = sum(d['balance'] for d in debts)

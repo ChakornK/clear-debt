@@ -145,3 +145,4 @@ def save_plan(user_id, plan):
     """, (user_id, json.dumps(plan)))
     conn.commit()
     cur.close(); conn.close()
+
