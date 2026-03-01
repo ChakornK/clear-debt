@@ -1,6 +1,7 @@
 from fastapi import FastAPI, HTTPException, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
+from fastapi.responses import StreamingResponse
 from models import (ExchangeTokenRequest, SaveDebtsRequest, GeneratePlanRequest,
           ChatRequest, CalendarEvent, DashboardResponse, PredictEventRequest)
 from plaid_client import create_link_token, exchange_public_token, get_accounts, get_transactions, get_liabilities
@@ -11,7 +12,7 @@ from snowflake_client import (get_cached_category_mappings, get_transactions_raw
   get_dashboard_data, save_user_preferences, get_user_preferences,
   ensure_schema, get_blocked_triggers, block_trigger, update_calendar_events_from_triggers)
 import time
-from cortex import generate_plan, chat, generate_milestone, classify_transactions, predict_event_spend, predict_events_batch
+from cortex import generate_plan, chat, chat_stream, generate_milestone, classify_transactions, predict_event_spend, predict_events_batch
 from google_calendar_client import get_google_calendar_events
 from math_engine import calc_all_strategies
 from pydantic import BaseModel
@@ -388,7 +389,10 @@ async def chat_route(req: ChatRequest, user: dict = Depends(get_current_user)):
     user_id = user['sub']
     debts = get_debts(user_id)
     if not debts:
-      return {"reply": "No debts found. Please add your debts first so I can give you specific advice."}
+      def no_debt_stream():
+        yield "No debts found. Please add your debts first so I can give you specific advice tailored to your situation."
+
+      return StreamingResponse(no_debt_stream(), media_type="text/plain")
 
     plan = {}
     try:
@@ -405,15 +409,20 @@ async def chat_route(req: ChatRequest, user: dict = Depends(get_current_user)):
     except:
       pass
 
-    history = [m.dict() for m in req.history]
+    prefs = get_user_preferences(user_id)
+    events = get_calendar_events(user_id, future_only=True)
+
+    history = [m.dict() for m in (req.history or [])]
     history.append({"role": "user", "content": req.message})
 
-    try:
-      reply = chat(debts, plan, history)
-    except Exception as e:
-      raise HTTPException(status_code=500, detail=f"Chat error: {str(e)}")
+    def stream():
+      try:
+        for chunk in chat_stream(debts, plan, prefs, events, history):
+          yield chunk
+      except Exception as e:
+        yield "\n[Error] Something went wrong generating a response. Please try again.\n"
 
-    return {"reply": reply}
+    return StreamingResponse(stream(), media_type="text/plain")
   except HTTPException:
     raise
   except Exception as e:
@@ -451,12 +460,31 @@ async def get_dashboard(user: dict = Depends(get_current_user)):
     events    = db_data['events']
     raw_txns    = db_data['raw_txns']
     cat_map     = db_data['cat_map']
+    prefs       = db_data.get('prefs') or {}
+
+    # Monthly spending budget (what the weekly chart is based on)
     monthly_budget = db_data.get('monthly_limit', 500)
     weekly_budget  = round(monthly_budget / 4.33, 2)
     period_budget  = monthly_budget * 3
 
     today_date = datetime.now().date()
     now    = datetime.now()
+
+    # ── PLANNED MONTHLY DEBT CONTRIBUTION ─────────
+    monthly_income = float(prefs.get('monthly_income') or 0)
+    monthly_limit  = float(prefs.get('monthly_limit') or monthly_budget)
+    savings_pct    = float(prefs.get('savings_pct') if prefs.get('savings_pct') is not None else 20)
+
+    total_min_payments = sum(float(d.get('minimum') or 0) for d in debts) if debts else 0.0
+    amount_left_over = monthly_income - monthly_limit - total_min_payments
+    if amount_left_over > 0:
+      to_savings = amount_left_over * (savings_pct / 100.0)
+      to_debt_extra = amount_left_over - to_savings
+    else:
+      to_savings = 0.0
+      to_debt_extra = 0.0
+
+    planned_monthly_debt_contribution = max(total_min_payments + to_debt_extra, 0.0)
 
     # ── CLASSIFY UNKNOWN CATEGORIES (one batch) ────
     unknown = list({
@@ -480,18 +508,17 @@ async def get_dashboard(user: dict = Depends(get_current_user)):
 
     # ── DEBT PROGRESS ──────────────────────────────
     total_debt = sum(d['balance'] for d in debts) if debts else 0
-    cutoff_30d = now - timedelta(days=30)
-    paid_this_month = sum(
-      abs(t['amount']) for t in raw_txns
-      if 'Payment' in t['category'] and datetime.fromisoformat(t['date']) >= cutoff_30d
-    )
+
+    # Use planned monthly contribution (from setup) rather than raw transaction sum
+    paid_this_month = planned_monthly_debt_contribution
 
     target_date_str = ""
-    if debts:
-      total_min = sum(d['minimum'] for d in debts)
-      if total_min > 0:
-        months = int(total_debt / (total_min + 200))
-        target_date_str = (now + timedelta(days=months * 30)).strftime("%B %Y")
+    if debts and planned_monthly_debt_contribution > 0:
+      # Rough payoff estimate in months using planned monthly contribution
+      months = int(total_debt / planned_monthly_debt_contribution)
+      if months < 1:
+        months = 1
+      target_date_str = (now + timedelta(days=months * 30)).strftime("%B %Y")
 
     # ── STREAK — O(N) pre-aggregation ─────────────
     # Build week-bucket sums once, then scan

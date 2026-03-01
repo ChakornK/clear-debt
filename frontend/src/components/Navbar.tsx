@@ -14,6 +14,8 @@ import {
   TbLayoutDashboard,
   TbLayoutDashboardFilled,
   TbLogout,
+  TbMessageCircle,
+  TbMessageCircleFilled,
 } from "react-icons/tb";
 
 const routes = [
@@ -22,6 +24,12 @@ const routes = [
     path: "/dashboard",
     icon: TbLayoutDashboard,
     iconSelected: TbLayoutDashboardFilled,
+  },
+  {
+    name: "Chat",
+    path: "/chat",
+    icon: TbMessageCircle,
+    iconSelected: TbMessageCircleFilled,
   },
   {
     name: "Calendar",

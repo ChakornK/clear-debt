@@ -111,6 +111,68 @@ Answer questions using their exact numbers. Be concise and actionable."""
     )
     return response.text
 
+def chat_stream(debts, plan, prefs, events, history):
+    """Stream chat responses from Gemini with rich financial context."""
+    debt_summary = "\n".join([
+        f"- {d['name']}: ${d['balance']} balance, {d['apr']}% APR, ${d['minimum']}/mo minimum"
+        for d in debts
+    ]) or "No debts found."
+
+    prefs = prefs or {}
+    monthly_income = prefs.get('monthly_income') or 0
+    monthly_limit = prefs.get('monthly_limit') or 0
+    savings_pct = prefs.get('savings_pct') or 20
+
+    budget_summary = (
+        f"Monthly net income: ${monthly_income}. "
+        f"Monthly non-debt budget: ${monthly_limit}. "
+        f"Target savings percentage: {savings_pct}%."
+    )
+
+    event_lines = "\n".join([
+        f"- {e['date']}: {e.get('type', 'Other')} — {e.get('label', '')} (${e.get('amount', 0)})"
+        for e in (events or [])[:15]
+    ]) or "No upcoming events on file."
+
+    system_context = f"""You are a financial coach specializing in debt repayment, budgeting, and planning around life events.
+
+DEBTS:
+{debt_summary}
+
+BUDGET & PREFERENCES:
+{budget_summary}
+
+UPCOMING CALENDAR EVENTS (potential spending):
+{event_lines}
+
+CURRENT REPAYMENT PLAN:
+- Strategy: {plan.get('recommendedStrategy', 'avalanche or snowball not yet chosen')}
+- Estimated payoff date: {plan.get('payoffDate', 'unknown')}
+- Estimated interest saved vs minimums-only: ${plan.get('interestSaved', 0)}
+
+GUIDELINES:
+- Always ground advice in the user's actual debts, budget, and events above.
+- Be concise, specific, and action-oriented.
+- When relevant, suggest trade-offs between events, discretionary spend, and extra debt payments.
+- Keep responses short (2–5 paragraphs) unless the user explicitly asks for a deep dive."""
+
+    conversation = "\n".join([
+        f"{'User' if m['role'] == 'user' else 'Assistant'}: {m['content']}"
+        for m in history
+    ])
+
+    full_prompt = system_context + "\n\n" + conversation + "\nAssistant:"
+
+    stream = client.models.generate_content_stream(
+        model='models/gemini-2.5-flash',
+        contents=full_prompt,
+    )
+
+    for chunk in stream:
+        text = getattr(chunk, "text", None) or ""
+        if text:
+            yield text
+
 def generate_milestone(debts, spending, events):
     debt_summary = ", ".join([f"{d['name']} (${d['balance']})" for d in debts])
     leisure_spend = sum(s['total'] for s in spending if s['category'] in ['Dining', 'Entertainment', 'Subscriptions'])
