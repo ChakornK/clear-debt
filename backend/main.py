@@ -175,7 +175,7 @@ def get_user_setup_route(user: dict = Depends(get_current_user)):
     ]
 
     return {
-      "has_completed_setup": False, # TODO:
+      "has_completed_setup": bool(prefs or debts or events),
       "debts": debts,
       "activities": activities,
       "monthly_income": prefs['monthly_income'] if prefs else 0,
