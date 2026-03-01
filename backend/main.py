@@ -1,25 +1,25 @@
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 from models import ExchangeTokenRequest, SaveDebtsRequest, GeneratePlanRequest, ChatRequest, CalendarEvent
 from plaid_client import create_link_token, exchange_public_token, get_accounts, get_transactions, get_liabilities
 from snowflake_client import (save_access_token, get_access_token, save_debts,
     get_debts, save_transactions, get_transactions_raw, get_spending_summary,
-    save_calendar_events, get_calendar_events, save_plan)
+    save_calendar_events, get_calendar_events, save_plan, get_connection)
 from cortex import generate_plan, chat
 from math_engine import calc_all_strategies
 from pydantic import BaseModel
 from typing import List
 from datetime import datetime, timedelta
-import random, os
-from auth import router as auth_router
+import random, os, json
+from auth import router as auth_router, get_current_user
 
 app = FastAPI(title="ClearDebt API")
 
 # ── MIDDLEWARE ─────────────────────────────────────────
 app.add_middleware(CORSMiddleware,
-    allow_origins=[os.getenv("FRONTEND_URL", "http://localhost:3000")], 
-    allow_methods=["*"], 
+    allow_origins=[os.getenv("FRONTEND_URL", "http://localhost:3000")],
+    allow_methods=["*"],
     allow_headers=["*"],
     allow_credentials=True)
 
@@ -31,26 +31,29 @@ app.include_router(auth_router)
 
 # ── PLAID ROUTES ──────────────────────────────────────
 
-@app.get("/api/plaid/link-token/{user_id}")
-def get_link_token(user_id: str):
+@app.get("/api/plaid/link-token")
+def get_link_token(user: dict = Depends(get_current_user)):
     try:
+        user_id = user['sub']
         token = create_link_token(user_id)
         return {"link_token": token}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/plaid/exchange")
-def exchange_token(req: ExchangeTokenRequest):
+def exchange_token(req: ExchangeTokenRequest, user: dict = Depends(get_current_user)):
     try:
+        user_id = user['sub']
         access_token, item_id = exchange_public_token(req.public_token)
-        save_access_token(req.user_id, access_token, item_id)
+        save_access_token(user_id, access_token, item_id)
         return {"success": True}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/api/plaid/sync/{user_id}")
-def sync_plaid(user_id: str):
+@app.get("/api/plaid/sync")
+def sync_plaid(user: dict = Depends(get_current_user)):
     try:
+        user_id = user['sub']
         access_token = get_access_token(user_id)
         if not access_token:
             raise HTTPException(status_code=404, detail="No linked account found")
@@ -66,20 +69,22 @@ def sync_plaid(user_id: str):
 # ── DEBT ROUTES ───────────────────────────────────────
 
 @app.post("/api/debts/save")
-def save_debts_route(req: SaveDebtsRequest):
+def save_debts_route(req: SaveDebtsRequest, user: dict = Depends(get_current_user)):
     try:
+        user_id = user['sub']
         debts = [d.model_dump() for d in req.debts]
         events = [e.model_dump() for e in req.calendar_events]
-        save_debts(req.user_id, debts)
+        save_debts(user_id, debts)
         if events:
-            save_calendar_events(req.user_id, events)
+            save_calendar_events(user_id, events)
         return {"saved": len(debts)}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/api/debts/{user_id}")
-def get_debts_route(user_id: str):
+@app.get("/api/debts")
+def get_debts_route(user: dict = Depends(get_current_user)):
     try:
+        user_id = user['sub']
         return {"debts": get_debts(user_id)}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -88,16 +93,18 @@ def get_debts_route(user_id: str):
 class CalendarResponse(BaseModel):
     events: List[CalendarEvent]
 
-@app.get("/api/calendar/{user_id}", response_model=CalendarResponse)
-def get_events(user_id: str):
+@app.get("/api/calendar", response_model=CalendarResponse)
+def get_events(user: dict = Depends(get_current_user)):
     try:
+        user_id = user['sub']
         return {"events": get_calendar_events(user_id, future_only=True)}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-    
-@app.post("/api/calendar/{user_id}")
-def save_events(user_id: str, events: List[CalendarEvent]):
+
+@app.post("/api/calendar")
+def save_events(events: List[CalendarEvent], user: dict = Depends(get_current_user)):
     try:
+        user_id = user['sub']
         save_calendar_events(user_id, [e.model_dump() for e in events])
         return {"saved": len(events)}
     except Exception as e:
@@ -106,17 +113,18 @@ def save_events(user_id: str, events: List[CalendarEvent]):
 # ── PLAN ROUTES ───────────────────────────────────────
 
 @app.post("/api/plan/generate")
-async def generate_plan_route(req: GeneratePlanRequest):
+async def generate_plan_route(req: GeneratePlanRequest, user: dict = Depends(get_current_user)):
     try:
-        debts = get_debts(req.user_id)
+        user_id = user['sub']
+        debts = get_debts(user_id)
         if not debts:
             raise HTTPException(status_code=400, detail="No debts found. Sync or add debts first.")
-        events = get_calendar_events(req.user_id, future_only=False)
-        spending = get_spending_summary(req.user_id)
+        events = get_calendar_events(user_id, future_only=False)
+        spending = get_spending_summary(user_id)
         strategies = calc_all_strategies(debts, req.extra_payment)
         ai_plan = generate_plan(debts, events, spending, strategies)
         ai_plan['strategies'] = strategies
-        save_plan(req.user_id, ai_plan)
+        save_plan(user_id, ai_plan)
         return {"plan": ai_plan}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -125,9 +133,10 @@ async def generate_plan_route(req: GeneratePlanRequest):
 
 
 @app.post("/api/chat")
-async def chat_route(req: ChatRequest):
+async def chat_route(req: ChatRequest, user: dict = Depends(get_current_user)):
     try:
-        debts = get_debts(req.user_id)
+        user_id = user['sub']
+        debts = get_debts(user_id)
         if not debts:
             return {"reply": "No debts found. Please add your debts first so I can give you specific advice."}
 
@@ -140,7 +149,7 @@ async def chat_route(req: ChatRequest):
                 SELECT PLAN_JSON FROM REPAYMENT_PLANS
                 WHERE USER_ID = %s
                 ORDER BY CREATED_AT DESC LIMIT 1
-            """, (req.user_id,))
+            """, (user_id,))
             row = cur.fetchone()
             cur.close(); conn.close()
             if row:
@@ -149,11 +158,12 @@ async def chat_route(req: ChatRequest):
             pass
 
         history = [m.dict() for m in req.history]
+        history.append({"role": "user", "content": req.message})
 
         try:
-            reply = chat_with_gemini(debts, plan, history, req.message)
+            reply = chat(debts, plan, history)
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Gemini error: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Chat error: {str(e)}")
 
         return {"reply": reply}
 
@@ -162,18 +172,19 @@ async def chat_route(req: ChatRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-        
+
 
 from datetime import datetime, timedelta
 import random
 
-@app.get("/api/dashboard/{user_id}")
-async def get_dashboard(user_id: str):
+@app.get("/api/dashboard")
+async def get_dashboard(user: dict = Depends(get_current_user)):
     try:
+        user_id = user['sub']
         access_token = get_access_token(user_id)
         if not access_token:
             raise HTTPException(status_code=404, detail="No linked account found")
-        
+
         # Pull real data from Snowflake
         debts = get_debts(user_id)
         spending = get_spending_summary(user_id)

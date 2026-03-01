@@ -18,8 +18,7 @@ function LinkButton({ linkToken }: LinkButtonProps) {
       await fetch(process.env.NEXT_PUBLIC_API_URL + "/api/plaid/exchange", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        // TODO: Replace with auth token instead of user ID
-        body: JSON.stringify({ public_token, user_id: "user123" }),
+        body: JSON.stringify({ public_token }),
       });
       setDidLink(true);
     } finally {
@@ -58,8 +57,7 @@ export default function PlaidLinkButton() {
   useEffect(() => {
     async function generateToken(): Promise<void> {
       try {
-        // TODO: Replace with auth token instead of user ID, change method to POST
-        const response = await fetch(process.env.NEXT_PUBLIC_API_URL + "/api/plaid/link-token/user123", { method: "GET" });
+        const response = await fetch(process.env.NEXT_PUBLIC_API_URL + "/api/plaid/link-token", { method: "GET" });
         const data = await response.json();
         setLinkToken(data.link_token);
       } catch {

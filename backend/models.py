@@ -28,19 +28,15 @@ class ChatMessage(BaseModel):
     content: str
 
 class ExchangeTokenRequest(BaseModel):
-    user_id: str
     public_token: str
 
 class SaveDebtsRequest(BaseModel):
-    user_id: str
     debts: List[Debt]
     calendar_events: Optional[List[CalendarEvent]] = []
 
 class GeneratePlanRequest(BaseModel):
-    user_id: str
     extra_payment: Optional[float] = 200
 
 class ChatRequest(BaseModel):
-    user_id: str
     message: str
     history: Optional[List[ChatMessage]] = []
