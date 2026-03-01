@@ -306,7 +306,7 @@ export default function Calendar() {
             ))}
           </div>
 
-          <div className="grid min-h-[335px] grow grid-cols-7">
+          <div className="min-h-83.75 grid grow grid-cols-7">
             {prevTail.map((day) => (
               <div key={`prev-${day}`} className="border-b border-r border-slate-100 bg-slate-50/50 p-4 text-slate-300">
                 {day}
