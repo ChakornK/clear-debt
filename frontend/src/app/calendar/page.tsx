@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { TbChevronLeft, TbChevronRight, TbRefresh, TbFileText, TbCreditCard, TbPin, TbReportMoney, TbCalendarEvent, TbList, TbPlus } from "react-icons/tb";
 import type { IconType } from "react-icons";
 import Modal from "@/components/Modal";
+import { apiFetch } from "@/lib/api";
 
 type EventType = "subscription" | "bill" | "expense" | "default";
 
@@ -13,10 +14,6 @@ interface CalendarEvent {
   type: EventType;
   label: string;
   amount: number;
-}
-
-interface EventData {
-  events: CalendarEvent[];
 }
 
 interface TypeConfigEntry {
@@ -48,20 +45,6 @@ interface PopoverProps {
   onAddExpense: (date: string) => void;
 }
 
-// TODO: replace with real data
-const data: EventData = {
-  events: [
-    { date: "2026-02-05", type: "subscription", label: "Netflix", amount: 15.99 },
-    { date: "2026-02-07", type: "bill", label: "Electric Bill", amount: 94.5 },
-    { date: "2026-02-07", type: "subscription", label: "Spotify", amount: 9.99 },
-    { date: "2026-02-12", type: "expense", label: "Car Insurance", amount: 120.0 },
-    { date: "2026-02-15", type: "expense", label: "Study Group", amount: 15.0 },
-    { date: "2026-02-15", type: "expense", label: "Team Lunch", amount: 25.0 },
-    { date: "2026-02-15", type: "expense", label: "Grocery Run", amount: 85.0 },
-    { date: "2026-02-20", type: "subscription", label: "iCloud Storage", amount: 2.99 },
-  ],
-};
-
 const DAYS_OF_WEEK = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
 
 const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"] as const;
@@ -82,7 +65,8 @@ const getTypeConfig = (type: string): TypeConfigEntry => TYPE_CONFIG[type as Eve
 
 function buildEventMap(events: CalendarEvent[]): Record<string, CalendarEvent[]> {
   return events.reduce<Record<string, CalendarEvent[]>>((map, ev) => {
-    (map[ev.date] ??= []).push(ev);
+    const d = ev.date.split("T")[0];
+    (map[d] ??= []).push(ev);
     return map;
   }, {});
 }
@@ -123,11 +107,6 @@ function calcPopoverPosition(cellRect: DOMRect, popoverHeight: number): PopoverP
   return { top, left, arrowLeft, arrowSide: placeBelow ? "top" : "bottom" };
 }
 
-interface AddExpenseFormProps {
-  date: string;
-  onChange: (fields: AddExpenseFields) => void;
-}
-
 interface AddExpenseFields {
   label: string;
   amount: string;
@@ -137,7 +116,7 @@ interface AddExpenseFields {
 
 const EXPENSE_TYPES: Exclude<EventType, "default">[] = ["expense", "bill", "subscription"];
 
-function AddExpenseForm({ date, onChange }: AddExpenseFormProps) {
+function AddExpenseForm({ date, onChange }: { date: string; onChange: (fields: AddExpenseFields) => void }) {
   const [fields, setFields] = useState<AddExpenseFields>({ label: "", amount: "", type: "expense", date });
 
   function update<K extends keyof AddExpenseFields>(key: K, value: AddExpenseFields[K]): void {
@@ -169,9 +148,9 @@ function AddExpenseForm({ date, onChange }: AddExpenseFormProps) {
             min="0"
             step="0.01"
             placeholder="0.00"
-            value={(+fields.amount).toFixed(2)}
+            value={fields.amount}
             onChange={(e) => update("amount", e.target.value)}
-            className={`${inputClass}${" "}pl-7`}
+            className={`${inputClass}pl-7`}
           />
         </div>
       </div>
@@ -315,6 +294,8 @@ function EventPopover({ anchor, events, year, month, day, onClose, onAddExpense 
 export default function Calendar() {
   const [year, setYear] = useState<number>(new Date().getFullYear());
   const [month, setMonth] = useState<number>(new Date().getMonth() + 1);
+  const [events, setEvents] = useState<CalendarEvent[]>([]);
+  const [loading, setLoading] = useState(true);
   const [popover, setPopover] = useState<PopoverState | null>(null);
 
   // State for the Add Expense modal
@@ -322,7 +303,25 @@ export default function Calendar() {
   const [modalDate, setModalDate] = useState<string>("");
   const [pendingExpense, setPendingExpense] = useState<AddExpenseFields | null>(null);
 
-  const eventMap = useMemo(() => buildEventMap(data.events), []);
+  const fetchEvents = useCallback(async () => {
+    try {
+      const res = await apiFetch("/api/calendar");
+      if (res.ok) {
+        const json = await res.json();
+        setEvents(json.events);
+      }
+    } catch (err) {
+      console.error("Failed to fetch calendar events", err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchEvents();
+  }, [fetchEvents]);
+
+  const eventMap = useMemo(() => buildEventMap(events), [events]);
 
   function prevMonth(): void {
     if (month === 1) {
@@ -356,9 +355,24 @@ export default function Calendar() {
     setModalOpen(true);
   }
 
-  function handleModalConfirm(): void {
-    // TODO: persist pendingExpense to data source
-    console.log("New expense:", pendingExpense);
+  async function handleModalConfirm() {
+    if (!pendingExpense) return;
+    try {
+      await apiFetch("/api/calendar", {
+        method: "POST",
+        body: JSON.stringify([
+          {
+            date: pendingExpense.date,
+            type: pendingExpense.type,
+            label: pendingExpense.label,
+            amount: parseFloat(pendingExpense.amount) || 0,
+          },
+        ]),
+      });
+      fetchEvents();
+    } catch (err) {
+      console.error("Failed to add expense", err);
+    }
     setModalOpen(false);
   }
 
@@ -375,9 +389,9 @@ export default function Calendar() {
   const nextHead = Array.from({ length: nextCount }, (_, i) => i + 1);
 
   const monthPrefix = `${year}-${String(month).padStart(2, "0")}`;
-  const monthEvents = data.events.filter((ev) => ev.date.startsWith(monthPrefix));
+  const monthEvents = events.filter((ev) => ev.date.startsWith(monthPrefix));
   const totalEstimated = monthEvents.reduce((s, ev) => s + ev.amount, 0);
-  const uniqueDays = new Set(monthEvents.map((e) => e.date)).size;
+  const uniqueDays = new Set(monthEvents.map((e) => e.date.split("T")[0])).size;
 
   const selectedEvents: CalendarEvent[] = popover ? (eventMap[toDateStr(year, month, popover.day)] ?? []) : [];
 
@@ -421,24 +435,23 @@ export default function Calendar() {
             ))}
 
             {currDays.map((day, idx) => {
-              const events = eventMap[toDateStr(year, month, day)] ?? [];
+              const dayEvents = eventMap[toDateStr(year, month, day)] ?? [];
               const isSelected = popover?.day === day;
               return (
                 <div
                   key={`curr-${day}`}
                   onClick={(e) => handleDayClick(day, e)}
                   className={[
-                    "relative cursor-pointer border-b border-slate-100 p-4 font-medium transition-colors",
-                    idx < currDays.length - 1 ? "border-r" : "",
+                    "relative cursor-pointer border-b border-r border-slate-100 p-4 font-medium transition-colors",
                     isSelected ? "bg-green-50" : "hover:bg-slate-50",
                   ]
                     .filter(Boolean)
                     .join(" ")}
                 >
                   <span className={isSelected ? "font-bold text-green-600" : ""}>{day}</span>
-                  {events.length > 0 && (
+                  {dayEvents.length > 0 && (
                     <div className="mt-1 flex flex-wrap gap-1">
-                      {events.slice(0, 4).map((ev, i) => (
+                      {dayEvents.slice(0, 4).map((ev, i) => (
                         <div key={i} className={`size-1.5 rounded-full ${getTypeConfig(ev.type).dot}`} />
                       ))}
                     </div>

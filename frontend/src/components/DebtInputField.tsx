@@ -29,7 +29,6 @@ export const DebtInputField = ({ id, debt, onRemoveClick, onFieldChange }: DebtI
           <div>
             <p className="text-sm font-semibold ml-1">Debt Name</p>
             <input
-              id={id}
               type="text"
               value={debt.name}
               placeholder="e.g. Credit Card"

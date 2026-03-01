@@ -155,7 +155,7 @@ Respond ONLY with valid JSON, no markdown:
 }}"""
 
     response = client.models.generate_content(
-        model='models/gemini-2.5-flash',
+        model='models/gemma-3-27b-it',
         contents=prompt
     )
     clean = response.text.strip().replace('```json', '').replace('```', '').strip()
@@ -180,7 +180,7 @@ Respond ONLY with a JSON array of objects, one for each event in the exact same 
 ]"""
 
     response = client.models.generate_content(
-        model='models/gemini-2.0-flash', 
+        model='models/gemma-3-27b-it', 
         contents=prompt
     )
     clean = response.text.strip().replace('```json', '').replace('```', '').strip()

@@ -8,11 +8,12 @@ import { TbArrowBigRightLines } from "react-icons/tb";
 import AddButton from "@/components/AddButton";
 import api from "@/api/axios";
 import { MouseEvent } from 'react';
+import { DebtType } from "@/types/types";
 
 interface Debt {
   id: string;
   name: string;
-  type: string;
+  type: DebtType;
   balance: number;
   apr: number;
   minimum: number;
@@ -32,7 +33,7 @@ export default function Setup() {
     {
       id: "debt-default",
       name: "",
-      type: "CreditCard",
+      type: DebtType["Credit card"],
       balance: 0,
       apr: 0,
       minimum: 0,
@@ -61,7 +62,7 @@ export default function Setup() {
     const newDebt: Debt = {
       id: `debt-${Date.now()}`,
       name: "",
-      type: "CreditCard",
+      type: DebtType.Other,
       balance: 0,
       apr: 0,
       minimum: 0,
