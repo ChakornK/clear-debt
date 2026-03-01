@@ -183,59 +183,67 @@ function AddExpenseForm({
     onChange(next);
   }
 
-  const inputClass =
-    "w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition-colors focus:border-green-400 focus:ring-2 focus:ring-green-100";
   const labelClass = "mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500";
+  const inputClass =
+    "w-full rounded-xl border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white outline-none transition-colors placeholder:text-slate-600 focus:border-green-500 focus:ring-2 focus:ring-green-500/20";
 
   return (
-    <div className="space-y-4 rounded-xl border border-slate-700 bg-slate-900/50 p-4">
-      <label className="block">
-        <span className="mb-1 block text-xs font-bold uppercase tracking-wider text-slate-400">Description</span>
+    <div className="space-y-6">
+      <div>
+        <label className={labelClass}>Description</label>
         <input
           type="text"
-          className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white focus:border-green-500 focus:outline-none"
+          className={inputClass}
           value={fields.label}
           onChange={(e) => update("label", e.target.value)}
           placeholder="What's the expense for?"
         />
-      </label>
+      </div>
 
-      <div className="grid grid-cols-2 gap-3">
-        <label>
-          <span className="mb-1 block text-xs font-bold uppercase tracking-wider text-slate-400">Amount</span>
-          <div className="relative">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">$</span>
-            <input
-              type="number"
-              className="w-full rounded-lg border border-slate-700 bg-slate-800 py-2 pl-7 pr-3 text-sm text-white focus:border-green-500 focus:outline-none"
-              value={fields.amount}
-              onChange={(e) => update("amount", e.target.value)}
-              placeholder="0.00"
-            />
-          </div>
-        </label>
-        <label>
-          <span className="mb-1 block text-xs font-bold uppercase tracking-wider text-slate-400">Category</span>
-          <select
-            className="w-full appearance-none rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white focus:border-green-500 focus:outline-none"
-            value={fields.type}
-            onChange={(e) => update("type", e.target.value as any)}
-          >
-            {EXPENSE_TYPES.map((t) => (
-              <option key={t} value={t}>
+      <div>
+        <label className={labelClass}>Amount</label>
+        <div className="relative">
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">$</span>
+          <input
+            type="number"
+            className="w-full rounded-lg border border-slate-700 bg-slate-800 py-2 pl-7 pr-3 text-sm text-white focus:border-green-500 focus:outline-none"
+            value={fields.amount}
+            onChange={(e) => update("amount", e.target.value)}
+            placeholder="0.00"
+          />
+        </div>
+      </div>
+
+      <div>
+        <label className={labelClass}>Type</label>
+        <div className="grid grid-cols-2 gap-2">
+          {EXPENSE_TYPES.map((t) => {
+            const cfg = TYPE_CONFIG[t];
+            const isActive = fields.type === t;
+            return (
+              <button
+                key={t}
+                type="button"
+                onClick={() => update("type", t)}
+                className={[
+                  "flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-semibold capitalize transition-colors",
+                  isActive ? `${cfg.badge} border-transparent` : "border-slate-700 bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-slate-300",
+                ].join(" ")}
+              >
+                <cfg.Icon className="h-3.5 w-3.5" />
                 {t}
-              </option>
-            ))}
-          </select>
-        </label>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {showDelete && (
         <button
           onClick={onDelete}
-          className="flex w-full items-center justify-center gap-2 rounded-lg border border-red-500/20 bg-red-500/10 py-2 text-xs font-bold text-red-400 transition hover:bg-red-500/20"
+          className="flex w-full items-center justify-center gap-2 rounded-xl border border-red-500/20 bg-red-500/10 py-2.5 text-xs font-bold text-red-400 transition hover:bg-red-500/20"
         >
-          <TbTrash /> Delete Expense
+          <TbTrash className="h-4 w-4" /> Delete Expense
         </button>
       )}
     </div>
@@ -347,7 +355,7 @@ function EventPopover({ anchor, events, year, month, day, onClose, onAddExpense,
                   onEditEvent(ev);
                   onClose();
                 }}
-                className="shrink-0 rounded-lg border border-slate-700 px-2 py-1 text-[10px] font-bold text-slate-400 hover:bg-slate-700 transition-colors"
+                className="shrink-0 rounded-lg border border-slate-700 px-2 py-1 text-[10px] font-bold text-slate-400 transition-colors hover:bg-slate-700"
               >
                 Edit
               </button>
@@ -560,10 +568,10 @@ export default function Calendar() {
         <header className="flex h-16 shrink-0 items-center justify-between border-b border-slate-800 bg-slate-800/50 px-6 backdrop-blur-md">
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-1 rounded-lg bg-slate-700/50 p-1">
-              <button onClick={prevMonth} className="flex h-8 w-8 items-center justify-center rounded hover:bg-slate-600 transition">
+              <button onClick={prevMonth} className="flex h-8 w-8 items-center justify-center rounded transition hover:bg-slate-600">
                 <TbChevronLeft />
               </button>
-              <button onClick={nextMonth} className="flex h-8 w-8 items-center justify-center rounded hover:bg-slate-600 transition">
+              <button onClick={nextMonth} className="flex h-8 w-8 items-center justify-center rounded transition hover:bg-slate-600">
                 <TbChevronRight />
               </button>
             </div>
@@ -578,7 +586,7 @@ export default function Calendar() {
                 setYear(d.getFullYear());
                 setMonth(d.getMonth());
               }}
-              className="rounded-lg border border-slate-700 bg-slate-800 px-4 py-2 text-sm font-bold shadow-sm hover:bg-slate-700 transition"
+              className="rounded-lg border border-slate-700 bg-slate-800 px-4 py-2 text-sm font-bold shadow-sm transition hover:bg-slate-700"
             >
               Today
             </button>
@@ -652,7 +660,7 @@ export default function Calendar() {
                 </div>
 
                 {/* Add button hover */}
-                <div className="absolute right-2 top-2 hidden group-hover:block transition-all transform scale-90">
+                <div className="absolute right-2 top-2 hidden scale-90 transform transition-all group-hover:block">
                   <div className="flex h-5 w-5 items-center justify-center rounded-full bg-green-500 text-white shadow-lg">
                     <TbPlus className="h-3 w-3" />
                   </div>
@@ -675,7 +683,7 @@ export default function Calendar() {
             </div>
           </div>
           <div className="flex items-center gap-4">
-            <div className="h-10 w-px bg-slate-700 mx-2" />
+            <div className="mx-2 h-10 w-px bg-slate-700" />
             <div className="flex flex-col text-right">
               <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Month Outlook</span>
               <span className={`text-xl font-black ${monthSpendingTotal < 2000 ? "text-green-400" : "text-amber-400"}`}>
@@ -692,7 +700,7 @@ export default function Calendar() {
           anchor={popover.anchor}
           events={popover ? (eventMap[toDateStr(year, month + 1, popover.day)] ?? []) : []}
           year={year}
-          month={month}
+          month={month + 1}
           day={popover.day}
           onClose={closePopover}
           onAddExpense={handleAddExpense}
