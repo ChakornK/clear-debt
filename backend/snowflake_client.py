@@ -181,6 +181,53 @@ def save_calendar_events(user_id, events):
     """, [(user_id, e['date'], e['type'], e['label'], e['amount']) for e in events])
     conn.commit()
 
+def update_calendar_events_from_triggers(user_id, events):
+  """
+  Bulk-update future calendar events for a user based on trigger definitions.
+
+  For each incoming trigger-like dict, we treat (label, type, amount) as the
+  canonical definition and propagate it to all future CALENDAR_EVENTS rows
+  with the same label for that user.
+  """
+  if not events:
+    return
+
+  with get_connection() as conn:
+    cur = conn.cursor()
+
+    params = []
+    seen = set()
+
+    for e in events:
+      label = (e.get('label') or '').strip()
+      event_type = (e.get('type') or '').strip() or "Other"
+      try:
+        amount = float(e.get('amount') or 0)
+      except (TypeError, ValueError):
+        amount = 0
+
+      if not label or amount <= 0:
+        continue
+
+      key = (label, event_type, amount)
+      if key in seen:
+        continue
+      seen.add(key)
+
+      params.append((event_type, amount, user_id, label))
+
+    if not params:
+      return
+
+    cur.executemany("""
+      UPDATE CALENDAR_EVENTS
+      SET TYPE = %s, AMOUNT = %s
+      WHERE USER_ID = %s
+        AND LABEL = %s
+        AND EVENT_DATE >= CURRENT_DATE
+    """, params)
+    conn.commit()
+
 def get_calendar_events(user_id, future_only=False):
   with get_connection() as conn:
     cur = conn.cursor()

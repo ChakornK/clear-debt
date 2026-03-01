@@ -9,7 +9,7 @@ from snowflake_client import (get_cached_category_mappings, get_transactions_raw
   save_calendar_events, get_calendar_events, delete_calendar_event, save_plan, get_connection,
   get_cached_milestone, save_milestone, save_category_mappings,
   get_dashboard_data, save_user_preferences, get_user_preferences,
-  ensure_schema, get_blocked_triggers, block_trigger)
+  ensure_schema, get_blocked_triggers, block_trigger, update_calendar_events_from_triggers)
 import time
 from cortex import generate_plan, chat, generate_milestone, classify_transactions, predict_event_spend, predict_events_batch
 from google_calendar_client import get_google_calendar_events
@@ -130,6 +130,10 @@ def save_debts_route(req: SaveDebtsRequest, user: dict = Depends(get_current_use
       ex.submit(save_debts, user_id, debts)
       ex.submit(save_calendar_events, user_id, events) if events else None
       ex.submit(save_user_preferences, user_id, req.monthly_income, req.monthly_limit, req.savings_pct)
+
+    # Propagate trigger edits to all future calendar events matching each label
+    if events:
+      update_calendar_events_from_triggers(user_id, events)
 
     _invalidate_dashboard(user_id)
     return {"saved": len(debts)}
