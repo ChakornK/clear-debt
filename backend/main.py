@@ -10,7 +10,7 @@ from snowflake_client import (save_access_token, get_access_token, save_debts,
     get_cached_milestone, save_milestone, save_category_mappings,
     get_dashboard_data)
 import time
-from cortex import generate_plan, chat, generate_milestone, classify_transactions, predict_event_spend
+from cortex import generate_plan, chat, generate_milestone, classify_transactions, predict_event_spend, predict_events_batch
 from google_calendar_client import get_google_calendar_events
 from math_engine import calc_all_strategies
 from pydantic import BaseModel
@@ -134,25 +134,32 @@ async def sync_google_calendar(request: Request, user: dict = Depends(get_curren
         # 1. Fetch events
         events = await get_google_calendar_events(access_token, days=30)
         
-        # 2. Predict spending for each event
-        estimated_events = []
-        for e in events:
-            try:
-                prediction = predict_event_spend(e['label'], e['date'])
+        if not events:
+            return {"synced": 0, "events": []}
+
+        # 2. Predict spending for events (Batch)
+        try:
+            predictions = predict_events_batch(events)
+            # predictions is expected to be a list of objects in the same order
+            estimated_events = []
+            for i, e in enumerate(events):
+                # Use matching prediction if available, else fallback
+                pred = predictions[i] if i < len(predictions) else {}
                 estimated_events.append({
                     "date": e['date'],
                     "type": "Calendar Event",
                     "label": e['label'],
-                    "amount": prediction.get('predictedAmount', 0)
+                    "amount": pred.get('predictedAmount', 0)
                 })
-            except Exception as ai_e:
-                print(f"AI estimation failed for {e['label']}: {ai_e}")
-                estimated_events.append({
-                    "date": e['date'],
-                    "type": "Calendar Event",
-                    "label": e['label'],
-                    "amount": 0
-                })
+        except Exception as ai_e:
+            print(f"Batch AI estimation failed: {ai_e}")
+            # Total fallback if the entire batch call fails
+            estimated_events = [{
+                "date": e['date'],
+                "type": "Calendar Event",
+                "label": e['label'],
+                "amount": 0
+            } for e in events]
         
         # 3. Save to Snowflake
         if estimated_events:

@@ -160,3 +160,28 @@ Respond ONLY with valid JSON, no markdown:
     )
     clean = response.text.strip().replace('```json', '').replace('```', '').strip()
     return json.loads(clean)
+
+def predict_events_batch(events: list):
+    event_list = "\n".join([f"- {e['label']} on {e['date']}" for e in events])
+    prompt = f"""You are a personal finance assistant. A user has these calendar events for the next 30 days:
+{event_list}
+
+Predict the likely spending in CAD for EACH event.
+
+Respond ONLY with a JSON array of objects, one for each event in the exact same order:
+[
+  {{
+    "label": "event label",
+    "predictedAmount": 25,
+    "category": "Dining",
+    "explanation": "Brief reasoning"
+  }},
+  ...
+]"""
+
+    response = client.models.generate_content(
+        model='models/gemini-2.0-flash', 
+        contents=prompt
+    )
+    clean = response.text.strip().replace('```json', '').replace('```', '').strip()
+    return json.loads(clean)
