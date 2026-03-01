@@ -88,23 +88,35 @@ def get_spending_summary(user_id):
 def save_calendar_events(user_id, events):
     conn = get_connection()
     cur = conn.cursor()
-    cur.execute("DELETE FROM CALENDAR_EVENTS WHERE USER_ID = %s", (user_id,))
     for e in events:
         cur.execute("""
-            INSERT INTO CALENDAR_EVENTS (USER_ID, EVENT_DATE, TYPE, LABEL, AMOUNT)
-            VALUES (%s, %s, %s, %s, %s)
+            MERGE INTO CALENDAR_EVENTS AS target
+            USING (SELECT %s AS USER_ID, %s AS EVENT_DATE, %s AS TYPE, 
+                          %s AS LABEL, %s AS AMOUNT) AS source
+            ON target.USER_ID = source.USER_ID 
+               AND target.EVENT_DATE = source.EVENT_DATE
+               AND target.LABEL = source.LABEL
+            WHEN MATCHED THEN UPDATE SET 
+                TYPE = source.TYPE, AMOUNT = source.AMOUNT
+            WHEN NOT MATCHED THEN INSERT 
+                (USER_ID, EVENT_DATE, TYPE, LABEL, AMOUNT)
+            VALUES (source.USER_ID, source.EVENT_DATE, source.TYPE, 
+                    source.LABEL, source.AMOUNT)
         """, (user_id, e['date'], e['type'], e['label'], e['amount']))
     conn.commit()
     cur.close(); conn.close()
 
-def get_calendar_events(user_id):
+def get_calendar_events(user_id, future_only=False):
     conn = get_connection()
     cur = conn.cursor()
-    cur.execute("""
+    query = """
         SELECT EVENT_DATE, TYPE, LABEL, AMOUNT FROM CALENDAR_EVENTS
-        WHERE USER_ID = %s AND EVENT_DATE >= CURRENT_DATE
-        ORDER BY EVENT_DATE ASC
-    """, (user_id,))
+        WHERE USER_ID = %s
+    """
+    if future_only:
+        query += " AND EVENT_DATE >= CURRENT_DATE"
+    query += " ORDER BY EVENT_DATE ASC"
+    cur.execute(query, (user_id,))
     rows = cur.fetchall()
     cur.close(); conn.close()
     return [{'date': str(r[0]), 'type': r[1], 'label': r[2], 'amount': r[3]} for r in rows]

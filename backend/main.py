@@ -73,7 +73,7 @@ def get_debts_route(user_id: str):
 @app.get("/api/calendar/{user_id}")
 def get_events(user_id: str):
     try:
-        return {"events": get_calendar_events(user_id)}
+        return {"events": get_calendar_events(user_id, future_only=True)}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -85,7 +85,7 @@ async def generate_plan_route(req: GeneratePlanRequest):
         debts = get_debts(req.user_id)
         if not debts:
             raise HTTPException(status_code=400, detail="No debts found. Sync or add debts first.")
-        events = get_calendar_events(req.user_id)
+        events = get_calendar_events(req.user_id, future_only=False)
         spending = get_spending_summary(req.user_id)
         strategies = calc_all_strategies(debts, req.extra_payment)
         ai_plan = generate_plan(debts, events, spending, strategies)
