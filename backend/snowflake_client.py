@@ -64,6 +64,8 @@ def ensure_schema():
       "ALTER TABLE TRANSACTIONS ADD COLUMN IF NOT EXISTS IS_INCOME BOOLEAN DEFAULT FALSE",
       "CREATE TABLE IF NOT EXISTS USER_MILESTONES (USER_ID STRING, MILESTONE_JSON VARIANT, CREATED_AT TIMESTAMP DEFAULT CURRENT_TIMESTAMP())",
       "CREATE TABLE IF NOT EXISTS CATEGORY_MAPPINGS (RAW_CATEGORY STRING PRIMARY KEY, BUCKET_NAME STRING)",
+      "CREATE TABLE IF NOT EXISTS USER_DEBTS (USER_ID STRING, DEBT_ID STRING, NAME STRING, TYPE STRING, BALANCE FLOAT, APR FLOAT, MINIMUM FLOAT, DUE_DAY INT, SOURCE STRING, ADDED_AT TIMESTAMP DEFAULT CURRENT_TIMESTAMP(), PRIMARY KEY (USER_ID, DEBT_ID))",
+      "ALTER TABLE USER_DEBTS ADD COLUMN IF NOT EXISTS ADDED_AT TIMESTAMP DEFAULT CURRENT_TIMESTAMP()",
       "CREATE TABLE IF NOT EXISTS USER_PREFERENCES (USER_ID STRING PRIMARY KEY, MONTHLY_INCOME FLOAT, MONTHLY_LIMIT FLOAT, SAVINGS_PCT FLOAT)",
       "CREATE TABLE IF NOT EXISTS USER_BLOCKED_TRIGGERS (USER_ID STRING, LABEL STRING, CREATED_AT TIMESTAMP DEFAULT CURRENT_TIMESTAMP(), PRIMARY KEY (USER_ID, LABEL))",
     ]:
@@ -318,14 +320,12 @@ def get_dashboard_data(user_id):
       return [{'date': str(r[0]), 'category': r[1], 'amount': r[2], 'description': r[3], 'id': r[4], 'is_income': r[5]} for r in cur.fetchall()]
 
   def fetch_prefs():
-    with get_connection() as conn:
-      cur = conn.cursor()
-      try:
-        cur.execute("SELECT MONTHLY_LIMIT FROM USER_PREFERENCES WHERE USER_ID = %s", (user_id,))
-        row = cur.fetchone()
-        return row[0] if row else 500
-      except:
-        return 500
+    # Reuse full preference fetch to keep logic in one place
+    prefs = get_user_preferences(user_id)
+    if prefs:
+      return prefs
+    # Sensible defaults if user has not completed setup
+    return {"monthly_income": 0, "monthly_limit": 500, "savings_pct": 20}
 
   def fetch_cat_map():
     with get_connection() as conn:
@@ -344,13 +344,15 @@ def get_dashboard_data(user_id):
     f_prefs   = ex.submit(fetch_prefs)
     f_cat_map = ex.submit(fetch_cat_map)
 
+  prefs = f_prefs.result()
   return {
     "debts":       f_debts.result(),
     "spending":     f_spend.result(),
     "events":      f_events.result(),
     "raw_txns":     f_txns.result(),
     "cat_map":      f_cat_map.result(),
-    "monthly_limit": f_prefs.result(),
+    "monthly_limit": (prefs.get("monthly_limit") if isinstance(prefs, dict) else prefs) or 500,
+    "prefs": prefs,
   }
 
 def get_cached_milestone(user_id):

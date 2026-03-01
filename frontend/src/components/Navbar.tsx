@@ -14,6 +14,8 @@ import {
   TbLayoutDashboard,
   TbLayoutDashboardFilled,
   TbLogout,
+  TbMessageCircle,
+  TbMessageCircleFilled,
   TbChevronLeft,
   TbChevronRight,
 } from "react-icons/tb";
@@ -31,6 +33,13 @@ const routes = [
     icon: TbCalendarMonth,
     iconSelected: TbCalendarMonthFilled,
   },
+  {
+    name: "Chat",
+    path: "/chat",
+    icon: TbMessageCircle,
+    iconSelected: TbMessageCircleFilled,
+  },
+
   {
     name: "Setup",
     path: "/setup",
@@ -91,12 +100,20 @@ export const Navbar = () => {
 
   return (
     <nav
-      className={`
-        relative flex shrink-0 flex-col items-stretch gap-1 bg-neutral-100 p-4 text-slate-900
-        transition-all duration-300 ease-in-out overflow-visible
+      className={`relative flex shrink-0 flex-col items-stretch gap-1 overflow-visible bg-neutral-100 p-4 text-slate-900 transition-all duration-300 ease-in-out
         ${collapsed ? "w-[72px]" : "w-2xs"}
       `}
     >
+      {collapsed && (
+        <button
+          onClick={() => setCollapsed(false)}
+          className="mx-auto mb-6 flex h-7 w-7 items-center justify-center rounded-lg border border-neutral-200 bg-white text-slate-500 shadow-sm transition hover:text-slate-800"
+          title="Expand sidebar"
+        >
+          <TbChevronRight className="text-base" />
+        </button>
+      )}
+
       {/* Header: avatar + name */}
       <div className="mb-6 flex items-center gap-3">
         <div className="h-10 w-10 shrink-0 overflow-clip rounded-full bg-neutral-200">
@@ -104,7 +121,7 @@ export const Navbar = () => {
         </div>
         {!collapsed && (
           <div className="min-w-0 flex-1 leading-tight">
-            <p className="text-lg font-bold truncate">{userData.given_name}</p>
+            <p className="truncate text-lg font-bold">{userData.given_name}</p>
           </div>
         )}
 
@@ -112,7 +129,7 @@ export const Navbar = () => {
         {!collapsed && (
           <button
             onClick={() => setCollapsed(true)}
-            className="ml-auto shrink-0 flex items-center justify-center h-7 w-7 rounded-lg bg-white shadow-sm border border-neutral-200 text-slate-500 hover:text-slate-800 transition"
+            className="ml-auto flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-neutral-200 bg-white text-slate-500 shadow-sm transition hover:text-slate-800"
             title="Collapse sidebar"
           >
             <TbChevronLeft className="text-base" />
@@ -120,33 +137,21 @@ export const Navbar = () => {
         )}
       </div>
 
-      {collapsed && (
-        <button
-          onClick={() => setCollapsed(false)}
-          className="mb-6 mx-auto flex items-center justify-center h-7 w-7 rounded-lg bg-white shadow-sm border border-neutral-200 text-slate-500 hover:text-slate-800 transition"
-          title="Expand sidebar"
-        >
-          <TbChevronRight className="text-base" />
-        </button>
-      )}
-
       {/* Nav links */}
       {routes.map((route) => {
         const isSelected = pathname === route.path;
         return (
-          <Link
-            key={route.name}
-            href={route.path}
-            className={navLink({ intent: isSelected ? "selected" : "unselected" })}
-          >
+          <Link key={route.name} href={route.path} className={navLink({ intent: isSelected ? "selected" : "unselected" })}>
             <span className="shrink-0 text-xl">
-              {isSelected ? <route.iconSelected /> : <route.icon />}
+              {isSelected ?
+                <route.iconSelected />
+              : <route.icon />}
             </span>
             {!collapsed && <p>{route.name}</p>}
 
             {/* Tooltip on hover when collapsed */}
             {collapsed && (
-              <span className="absolute left-full ml-3 px-2 py-1 rounded-md bg-neutral-800 text-white text-sm whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity duration-150 z-50">
+              <span className="pointer-events-none absolute left-full z-50 ml-3 whitespace-nowrap rounded-md bg-neutral-800 px-2 py-1 text-sm text-white opacity-0 transition-opacity duration-150 group-hover:opacity-100">
                 {route.name}
               </span>
             )}
@@ -157,17 +162,14 @@ export const Navbar = () => {
       <div className="grow" />
 
       {/* Logout */}
-      <button
-        onClick={handleLogout}
-        className={navLink({ intent: "danger" })}
-      >
+      <button onClick={handleLogout} className={navLink({ intent: "danger" })}>
         <span className="shrink-0 text-xl">
           <TbLogout />
         </span>
         {!collapsed && <p>Logout</p>}
 
         {collapsed && (
-          <span className="absolute left-full ml-3 px-2 py-1 rounded-md bg-neutral-800 text-white text-sm whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity duration-150 z-50">
+          <span className="pointer-events-none absolute left-full z-50 ml-3 whitespace-nowrap rounded-md bg-neutral-800 px-2 py-1 text-sm text-white opacity-0 transition-opacity duration-150 group-hover:opacity-100">
             Logout
           </span>
         )}
