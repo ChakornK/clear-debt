@@ -6,7 +6,7 @@ import CalendarButton from "@/components/CalendarButton";
 import { useEffect, useState } from "react";
 import { TbArrowBigRightLines } from "react-icons/tb";
 import AddButton from "@/components/AddButton";
-import api from "@/api/axios";
+import { apiFetch } from "@/lib/api";
 import { MouseEvent } from 'react';
 import { DebtType } from "@/types/types";
 
@@ -107,31 +107,45 @@ export default function Setup() {
   // ── SAVE ───────────────────────────────────────────
 
   const onSave = async () => {
-    setError("");
+  setError("");
 
-    // Validate debts
-    const invalidDebts = debts.filter(d => !d.name || d.balance <= 0);
-    if (invalidDebts.length > 0) {
-      setError("Please fill in all debt fields (name and balance are required).");
+  const invalidDebts = debts.filter(d => !d.name || d.balance <= 0);
+  if (invalidDebts.length > 0) {
+    setError("Please fill in all debt fields (name and balance are required).");
+    return;
+  }
+
+  setSaving(true);
+  try {
+    const res = await apiFetch('/api/debts/save', {
+      method: 'POST',
+      body: JSON.stringify({
+        debts: debts.map(d => ({
+          ...d,
+          type: DebtType[d.type]
+        })),
+        calendar_events: []
+      })
+    });
+
+    if (!res.ok) {
+      const err = await res.json();
+      if (err.detail && Array.isArray(err.detail)) {
+        setError(err.detail.map((e: any) => e.msg).join(', '));
+      } else {
+        setError(err.detail || "Failed to save. Please try again.");
+      }
       return;
     }
 
-    setSaving(true);
-    try {
-      // Save debts to backend
-      await api.post('/debts/save', {
-        debts: debts,
-        calendar_events: []
-      });
-
-      setSaved(true);
-      setTimeout(() => setSaved(false), 3000);
-    } catch (err: any) {
-      setError(err?.response?.data?.detail || "Failed to save. Please try again.");
-    } finally {
-      setSaving(false);
-    }
-  };
+    setSaved(true);
+    setTimeout(() => setSaved(false), 3000);
+  } catch (err: any) {
+    setError("Failed to save. Please try again.");
+  } finally {
+    setSaving(false);
+  }
+};
 
   const connectCalendar = (provider: string) => {
     // TODO: implement OAuth flow for each provider
