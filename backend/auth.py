@@ -75,7 +75,7 @@ async def auth_callback(request: Request):
         jwt_token = create_access_token(jwt_payload)
         frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
         
-        response = RedirectResponse(url=f"{frontend_url}/dashboard")
+        response = RedirectResponse(url=f"{frontend_url}/dashboard?token={jwt_token}")
         response.set_cookie(
             key="auth_token", 
             value=jwt_token, 
