@@ -437,15 +437,17 @@ async def get_dashboard(user: dict = Depends(get_current_user)):
                 target_date = (datetime.now() + timedelta(days=months*30)).strftime("%B %Y")
 
         # ── ACHIEVEMENT ────────────────────────────────
-        # Streak logic: count weeks under the user's weekly budget limit
+        # Streak logic: count weeks under the user's weekly budget limit (Excluding debt payments)
         streak = 0
         now = datetime.now()
+        today_date = now.date()
         for i in range(12): # check last 12 weeks
-            w_start = now - timedelta(weeks=i+1)
-            w_end = now - timedelta(weeks=i)
+            w_end_date = today_date - timedelta(weeks=i)
+            w_start_date = today_date - timedelta(weeks=i+1) + timedelta(days=1)
             w_spent = sum(t['amount'] for t in raw_txns 
-                         if w_start <= datetime.fromisoformat(t['date']) < w_end
-                         and not t.get('is_income', False))
+                         if w_start_date <= datetime.fromisoformat(t['date']).date() <= w_end_date
+                         and not t.get('is_income', False)
+                         and cached_cat_map.get(t['category'], "Other") != "Debt Payments")
             if w_spent < weekly_budget:
                 streak += 1
             else:
@@ -481,11 +483,12 @@ async def get_dashboard(user: dict = Depends(get_current_user)):
         # ── WEEKLY SPENDING ────────────────────────────
         weeks = []
         for i in range(4, -1, -1):
-            w_start = now - timedelta(weeks=i+1)
-            w_end = now - timedelta(weeks=i)
+            w_end_date = today_date - timedelta(weeks=i)
+            w_start_date = today_date - timedelta(weeks=i+1) + timedelta(days=1)
             w_spent = sum(t['amount'] for t in raw_txns 
-                         if w_start <= datetime.fromisoformat(t['date']) < w_end
-                         and not t.get('is_income', False))
+                         if w_start_date <= datetime.fromisoformat(t['date']).date() <= w_end_date
+                         and not t.get('is_income', False)
+                         and cached_cat_map.get(t['category'], "Other") != "Debt Payments")
             weeks.append({
                 "week": f"W{5-i}",
                 "spent": round(w_spent, 2),
@@ -494,16 +497,23 @@ async def get_dashboard(user: dict = Depends(get_current_user)):
 
         # ── DAILY DISTRIBUTION ─────────────────────────
         daily = []
-        days_map = ["M", "T", "W", "T", "F", "S", "S"]
-        # Last 7 days
+        days_map = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+        
+        # Pre-aggregate to O(N)
+        daily_buckets = { (today_date - timedelta(days=i)): 0 for i in range(7) }
+        for t in raw_txns:
+            if t.get('is_income', False): continue
+            if cached_cat_map.get(t['category'], "Other") == "Debt Payments": continue
+            
+            t_dt = datetime.fromisoformat(t['date']).date()
+            if t_dt in daily_buckets:
+                daily_buckets[t_dt] += t['amount']
+
         for i in range(6, -1, -1):
-            target_day = now - timedelta(days=i)
-            d_spent = sum(t['amount'] for t in raw_txns 
-                         if datetime.fromisoformat(t['date']).date() == target_day.date()
-                         and not t.get('is_income', False))
+            target_date = today_date - timedelta(days=i)
             daily.append({
-                "day": days_map[target_day.weekday()],
-                "spent": round(d_spent, 2),
+                "day": days_map[target_date.weekday()],
+                "spent": round(daily_buckets[target_date], 2),
                 "active": i == 0
             })
 
