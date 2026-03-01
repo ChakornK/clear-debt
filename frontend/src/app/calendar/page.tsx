@@ -559,7 +559,6 @@ export default function Calendar() {
 
   const monthSpendingTotal = monthEvents.filter((e) => !e.is_income).reduce((s, ev) => s + ev.amount, 0);
   const monthIncomeTotal = monthEvents.filter((e) => e.is_income).reduce((s, ev) => s + ev.amount, 0);
-  const monthPredictedTotal = monthSpendingTotal; // Placeholder for now
 
   return (
     <>
@@ -674,12 +673,12 @@ export default function Calendar() {
         <div className="flex h-20 shrink-0 items-center justify-between border-t border-slate-800 bg-slate-800 px-10 shadow-[0_-4px_10px_rgba(0,0,0,0.1)]">
           <div className="flex gap-10">
             <div className="flex flex-col">
-              <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Total Spending</span>
-              <span className="text-2xl font-black text-red-400">${monthSpendingTotal.toLocaleString()}</span>
+              <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Total Income</span>
+              <span className="text-2xl font-black text-slate-300">${monthIncomeTotal.toLocaleString()}</span>
             </div>
             <div className="flex flex-col border-l border-slate-700 pl-10">
-              <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Predicted for Month</span>
-              <span className="text-2xl font-black text-slate-300">${monthPredictedTotal.toLocaleString()}</span>
+              <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Total Spending</span>
+              <span className="text-2xl font-black text-red-400">${monthSpendingTotal.toLocaleString()}</span>
             </div>
           </div>
           <div className="flex items-center gap-4">
