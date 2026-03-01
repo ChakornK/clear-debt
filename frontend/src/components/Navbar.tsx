@@ -73,6 +73,7 @@ export const Navbar = () => {
       .then((data) => setUserData(data))
       .catch((err) => {
         console.error("Failed to fetch user data", err);
+        clearAuthToken();
       });
   }, [searchParams]);
 
