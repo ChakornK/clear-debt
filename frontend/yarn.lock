@@ -694,9 +694,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"clear-debt@workspace:.":
+"clear-debt-frontend@workspace:.":
   version: 0.0.0-use.local
-  resolution: "clear-debt@workspace:."
+  resolution: "clear-debt-frontend@workspace:."
   dependencies:
     "@tailwindcss/postcss": "npm:^4"
     "@types/node": "npm:^20"

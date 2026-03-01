@@ -82,3 +82,25 @@ You will also need accounts and API keys for:
 
 ---
 
+## Running Locally
+
+In the root folder, install all dependencies:
+
+```shell
+yarn install
+```
+
+To run in dev mode:
+
+```shell
+yarn dev
+```
+
+To build and start the app:
+
+```shell
+yarn build
+yarn start
+```
+
+---
