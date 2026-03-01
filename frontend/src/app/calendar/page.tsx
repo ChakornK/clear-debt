@@ -275,8 +275,8 @@ export default function Calendar() {
   const selectedEvents: CalendarEvent[] = popover ? (eventMap[toDateStr(year, month, popover.day)] ?? []) : [];
 
   return (
-    <div className="min-h-screen bg-white text-slate-900">
-      <main className="mx-auto max-w-7xl p-6 lg:p-10">
+    <>
+      <main className="min-h-dvh mx-auto flex max-w-7xl flex-col items-stretch bg-white p-6 text-slate-900 lg:p-10">
         {/* Header */}
         <div className="mb-8 flex flex-col justify-between gap-4 md:flex-row md:items-center">
           <div>
@@ -297,7 +297,7 @@ export default function Calendar() {
         </div>
 
         {/* Calendar Grid */}
-        <div className="overflow-hidden rounded-xl border border-slate-100 bg-white shadow-sm">
+        <div className="flex grow flex-col items-stretch overflow-hidden rounded-xl border border-slate-100 bg-white shadow-sm">
           <div className="grid grid-cols-7 border-b border-slate-100 bg-slate-50">
             {DAYS_OF_WEEK.map((d) => (
               <div key={d} className="py-4 text-center text-xs font-bold uppercase text-slate-500">
@@ -306,7 +306,7 @@ export default function Calendar() {
             ))}
           </div>
 
-          <div className="min-h-150 grid grid-cols-7">
+          <div className="grid min-h-[335px] grow grid-cols-7">
             {prevTail.map((day) => (
               <div key={`prev-${day}`} className="border-b border-r border-slate-100 bg-slate-50/50 p-4 text-slate-300">
                 {day}
@@ -397,6 +397,6 @@ export default function Calendar() {
       {popover && selectedEvents.length > 0 && (
         <EventPopover anchor={popover.anchor} events={selectedEvents} year={year} month={month} day={popover.day} onClose={closePopover} />
       )}
-    </div>
+    </>
   );
 }
