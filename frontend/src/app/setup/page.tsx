@@ -37,18 +37,7 @@ const STEPS = [
 ];
 
 export default function Setup() {
-  const [debts, setDebts] = useState<Debt[]>([
-    {
-      id: "debt-default",
-      name: "",
-      type: DebtType["Credit card"],
-      balance: 0,
-      apr: 0,
-      minimum: 0,
-      due: 1,
-      source: "manual",
-    },
-  ]);
+  const [debts, setDebts] = useState<Debt[]>([]);
 
   const [activities, setActivities] = useState<Activity[]>([{ id: 1, name: "", category: "Food & Dining", estimatedCost: 0 }]);
 

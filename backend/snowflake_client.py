@@ -101,11 +101,12 @@ def save_debts(user_id, debts):
     conn.commit()
 
 def get_debts(user_id):
+  _KEY_MAP = {"debt_id": "id", "due_day": "due"}
   with get_connection() as conn:
     cur = conn.cursor(snowflake.connector.DictCursor)
     cur.execute("SELECT DEBT_ID, NAME, TYPE, BALANCE, APR, MINIMUM, DUE_DAY, SOURCE FROM USER_DEBTS WHERE USER_ID = %s", (user_id,))
     rows = cur.fetchall()
-    return [{k.lower(): v for k, v in row.items()} for row in rows]
+    return [{_KEY_MAP.get(k.lower(), k.lower()): v for k, v in row.items()} for row in rows]
 
 def get_transactions_raw(user_id):
   with get_connection() as conn:
