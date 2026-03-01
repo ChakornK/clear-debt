@@ -170,6 +170,23 @@ def get_events(user: dict = Depends(get_current_user)):
         # 1. Fetch manual calendar events
         manual_events = get_calendar_events(user_id)
         
+        # 1b. Generate virtual income events from preferences
+        prefs = get_user_preferences(user_id)
+        income_events = []
+        if prefs and prefs.get('monthly_income', 0) > 0:
+            now = datetime.now()
+            # Generate for current year and next year to ensure visibility
+            for year in [now.year, now.year + 1]:
+                for month in range(1, 13):
+                    income_date = datetime(year, month, 1).strftime("%Y-%m-%d")
+                    income_events.append({
+                        "date": income_date,
+                        "type": "Income",
+                        "label": "Monthly Income",
+                        "amount": float(prefs['monthly_income']),
+                        "is_income": True
+                    })
+        
         # 2. Fetch real transactions
         txns = get_transactions_raw(user_id)
         
@@ -215,7 +232,7 @@ def get_events(user: dict = Depends(get_current_user)):
                 "is_income": t.get('is_income', False)
             })
 
-        return {"events": manual_events + final_txn_events}
+        return {"events": manual_events + final_txn_events + income_events}
     except Exception as e:
         print(f"Error in get_events: {e}")
         raise HTTPException(status_code=500, detail=str(e))

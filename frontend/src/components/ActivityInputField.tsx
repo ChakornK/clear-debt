@@ -1,5 +1,5 @@
 import { TbSquareRoundedXFilled } from "react-icons/tb";
-import { TbHome, TbToolsKitchen2, TbCar, TbBuildingHospital, TbDeviceTv, TbShoppingBag, TbCreditCard, TbQuestionMark } from "react-icons/tb";
+import { TbHome, TbToolsKitchen2, TbCar, TbBuildingHospital, TbDeviceTv, TbShoppingBag, TbCreditCard, TbQuestionMark, TbReportMoney } from "react-icons/tb";
 
 const TYPE_CONFIG: Record<string, { dot: string; Icon: any; badge: string; iconClass: string }> = {
   "Housing": { dot: "bg-emerald-400", Icon: TbHome, badge: "bg-emerald-100 text-emerald-700", iconClass: "text-emerald-500" },
@@ -9,10 +9,11 @@ const TYPE_CONFIG: Record<string, { dot: string; Icon: any; badge: string; iconC
   "Entertainment": { dot: "bg-purple-400", Icon: TbDeviceTv, badge: "bg-purple-100 text-purple-700", iconClass: "text-purple-500" },
   "Shopping": { dot: "bg-amber-400", Icon: TbShoppingBag, badge: "bg-amber-100 text-amber-700", iconClass: "text-amber-500" },
   "Debt Payments": { dot: "bg-red-400", Icon: TbCreditCard, badge: "bg-red-100 text-red-700", iconClass: "text-red-500" },
+  "Income": { dot: "bg-green-400", Icon: TbReportMoney, badge: "bg-green-100 text-green-700", iconClass: "text-green-500" },
   "Other": { dot: "bg-slate-400", Icon: TbQuestionMark, badge: "bg-slate-100 text-slate-700", iconClass: "text-slate-400" },
 };
 
-const activityCategories = ["Housing", "Food & Dining", "Transportation", "Healthcare", "Entertainment", "Shopping", "Debt Payments", "Other"];
+const activityCategories = ["Housing", "Food & Dining", "Transportation", "Healthcare", "Entertainment", "Shopping", "Debt Payments", "Income", "Other"];
 
 interface ActivityInputFieldProps {
   id: number;
