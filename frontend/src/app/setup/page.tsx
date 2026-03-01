@@ -3,19 +3,7 @@
 import { ActivityInputField } from "@/components/ActivityInputField";
 import { DebtInputField } from "@/components/DebtInputField";
 import { useEffect, useState, useMemo } from "react";
-import {
-  TbArrowRight,
-  TbArrowLeft,
-  TbCheck,
-  TbCalendarCheck,
-  TbWallet,
-  TbPigMoney,
-  TbCreditCard,
-  TbCoin,
-  TbLoader,
-  TbBrandGoogle,
-  TbBuildingBank,
-} from "react-icons/tb";
+import { TbArrowRight, TbArrowLeft, TbCheck, TbCalendarCheck, TbWallet, TbPigMoney, TbCreditCard, TbCoin, TbLoader, TbBuildingBank } from "react-icons/tb";
 import AddButton from "@/components/AddButton";
 import { apiFetch } from "@/lib/api";
 import { DebtType } from "@/types/types";
@@ -233,6 +221,9 @@ export default function Setup() {
             label: a.name,
             amount: a.estimatedCost,
           })),
+          monthly_income: monthlyIncome,
+          monthly_limit: monthlyLimit,
+          savings_pct: savingsPct,
         }),
       });
 

@@ -34,6 +34,9 @@ class ExchangeTokenRequest(BaseModel):
 class SaveDebtsRequest(BaseModel):
     debts: List[Debt]
     calendar_events: Optional[List[CalendarEvent]] = []
+    monthly_income: Optional[float] = 0
+    monthly_limit: Optional[float] = 0
+    savings_pct: Optional[float] = 20
 
 class GeneratePlanRequest(BaseModel):
     extra_payment: Optional[float] = 200

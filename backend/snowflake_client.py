@@ -277,3 +277,47 @@ def save_category_mappings(mappings):
     finally:
         cur.close(); conn.close()
 
+
+def save_user_preferences(user_id, income, limit, savings_pct):
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS USER_PREFERENCES (
+                USER_ID STRING PRIMARY KEY,
+                MONTHLY_INCOME FLOAT,
+                MONTHLY_LIMIT FLOAT,
+                SAVINGS_PCT FLOAT
+            )
+        """)
+        cur.execute("""
+            MERGE INTO USER_PREFERENCES AS target
+            USING (SELECT %s AS USER_ID, %s AS MONTHLY_INCOME, %s AS MONTHLY_LIMIT, %s AS SAVINGS_PCT) AS source
+            ON target.USER_ID = source.USER_ID
+            WHEN MATCHED THEN UPDATE SET 
+                MONTHLY_INCOME = source.MONTHLY_INCOME,
+                MONTHLY_LIMIT = source.MONTHLY_LIMIT,
+                SAVINGS_PCT = source.SAVINGS_PCT
+            WHEN NOT MATCHED THEN INSERT 
+                (USER_ID, MONTHLY_INCOME, MONTHLY_LIMIT, SAVINGS_PCT)
+            VALUES (source.USER_ID, source.MONTHLY_INCOME, source.MONTHLY_LIMIT, source.SAVINGS_PCT)
+        """, (user_id, income, limit, savings_pct))
+        conn.commit()
+    finally:
+        cur.close(); conn.close()
+
+def get_user_preferences(user_id):
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute("SELECT MONTHLY_INCOME, MONTHLY_LIMIT, SAVINGS_PCT FROM USER_PREFERENCES WHERE USER_ID = %s", (user_id,))
+        row = cur.fetchone()
+        if row:
+            return {
+                "monthly_income": row[0],
+                "monthly_limit": row[1],
+                "savings_pct": row[2]
+            }
+        return None
+    finally:
+        cur.close(); conn.close()

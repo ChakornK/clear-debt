@@ -8,7 +8,7 @@ from snowflake_client import (get_cached_category_mappings, get_transactions_raw
     get_debts, save_transactions, get_spending_summary,
     save_calendar_events, get_calendar_events, save_plan, get_connection,
     get_cached_milestone, save_milestone, save_category_mappings,
-    get_dashboard_data)
+    get_dashboard_data, save_user_preferences, get_user_preferences)
 import time
 from cortex import generate_plan, chat, generate_milestone, classify_transactions, predict_event_spend, predict_events_batch
 from google_calendar_client import get_google_calendar_events
@@ -110,7 +110,43 @@ def save_debts_route(req: SaveDebtsRequest, user: dict = Depends(get_current_use
         save_debts(user_id, debts)
         if events:
             save_calendar_events(user_id, events)
+        save_user_preferences(user_id, req.monthly_income, req.monthly_limit, req.savings_pct)
         return {"saved": len(debts)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/user/setup")
+def get_user_setup_route(user: dict = Depends(get_current_user)):
+    try:
+        user_id = user['sub']
+        prefs = get_user_preferences(user_id)
+        debts = get_debts(user_id)
+        events = get_calendar_events(user_id)
+        
+        # Convert calendar events back to activities for form pre-filling
+        # For simplicity, we filter events that were generically added as "triggers" 
+        # (they might have today's date if they were just added)
+        # Actually frontend is expecting an "id" which matches how it stores it.
+        activities = []
+        for i, e in enumerate(events):
+            # Try to restore activity structure
+            activities.append({
+                "id": i + 1,
+                "name": e['label'],
+                "category": e['type'],
+                "estimatedCost": e['amount']
+            })
+
+        has_completed_setup = bool(prefs or debts or events)
+        
+        return {
+            "has_completed_setup": has_completed_setup,
+            "debts": debts,
+            "activities": activities,
+            "monthly_income": prefs['monthly_income'] if prefs else 0,
+            "monthly_limit": prefs['monthly_limit'] if prefs else 0,
+            "savings_pct": prefs['savings_pct'] if prefs else 20
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
