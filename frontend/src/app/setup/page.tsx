@@ -66,6 +66,11 @@ export default function Setup() {
 
   useEffect(() => {
     const fetchUserData = async () => {
+      // Optimistically check cookie while API loads to avoid flash
+      if (document.cookie.includes("onboarding_complete=1")) {
+        setMode("edit");
+      }
+
       try {
         const res = await apiFetch("/api/user/setup");
         if (res.ok) {
@@ -73,6 +78,11 @@ export default function Setup() {
           if (data.has_completed_setup) {
             setMode("edit");
             document.cookie = "onboarding_complete=1; path=/; max-age=31536000";
+          } else {
+            // Server says not complete — clear any stale cookie and show onboarding
+            setMode("onboarding");
+            document.cookie = "onboarding_complete=; path=/; max-age=0";
+            setStep(1);
           }
           if (data.debts?.length > 0) setDebts(data.debts);
           if (data.activities?.length > 0) setActivities(data.activities);
@@ -86,10 +96,6 @@ export default function Setup() {
         setLoading(false);
       }
     };
-
-    if (document.cookie.includes("onboarding_complete=1")) {
-      setMode("edit");
-    }
 
     fetchUserData();
   }, []);
@@ -147,7 +153,6 @@ export default function Setup() {
 
   const validateStep = (s: number) => {
     if (s === 3) {
-      // Debts
       for (const debt of debts) {
         if (!debt.name.trim()) return "Every debt must have a name.";
         if (debt.balance <= 0) return `Balance for "${debt.name}" must be greater than 0.`;
@@ -158,7 +163,6 @@ export default function Setup() {
     }
 
     if (s === 4) {
-      // Spending Triggers
       for (const activity of activities) {
         if (!activity.name.trim()) return "Every spending trigger needs a name.";
         if (activity.estimatedCost < 0) return `Estimated cost for "${activity.name}" cannot be negative.`;
@@ -166,7 +170,6 @@ export default function Setup() {
     }
 
     if (s === 5) {
-      // Income & Goals
       if (monthlyIncome <= 0) return "Please enter a valid monthly net income.";
       if (monthlyLimit < 0) return "Monthly spending limit cannot be negative.";
       if (monthlyLimit > monthlyIncome) return "Spending limit cannot exceed your total income.";
@@ -194,9 +197,7 @@ export default function Setup() {
     setError("");
     setShowErrors(false);
 
-    // Validate all steps in edit mode
     for (let i = 3; i <= 5; i++) {
-      // Start validation from Debts (new step 3)
       const validationError = validateStep(i);
       if (validationError) {
         setError(validationError);
@@ -213,7 +214,7 @@ export default function Setup() {
         body: JSON.stringify({
           debts,
           calendar_events: activities.map((a) => ({
-            date: new Date().toISOString().split("T")[0], // placeholder for generic trigger
+            date: new Date().toISOString().split("T")[0],
             type: a.category,
             label: a.name,
             amount: a.estimatedCost,
@@ -249,7 +250,6 @@ export default function Setup() {
 
   return (
     <div className="min-h-screen bg-slate-50/50 pb-20 text-slate-900">
-      {/* Header section restricted width */}
       <div className="mx-auto max-w-4xl px-6 pt-12 md:pt-16">
         <div className="mb-12">
           <h1 className="text-4xl font-black tracking-tight text-slate-900">{mode === "onboarding" ? "Tailor Your Journey" : "Adjust Your Setup"}</h1>
@@ -527,7 +527,6 @@ export default function Setup() {
                     </div>
                   : <div className="flex flex-col gap-10">
                       <div className="relative pt-6">
-                        {/* Custom visual track */}
                         <div className="absolute top-8 flex h-4 w-full overflow-hidden rounded-full bg-slate-200">
                           <div className="h-full bg-blue-400 transition-all" style={{ width: `${savingsPct}%` }} />
                           <div className="h-full flex-1 bg-emerald-400 transition-all" />
