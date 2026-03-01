@@ -41,7 +41,7 @@ export default function Modal({ isOpen, onClose, title, confirmText, cancelText,
     <div ref={overlayRef} onClick={handleOverlayClick} className="z-9998 fixed inset-0 flex items-center justify-center bg-black/20 p-4 backdrop-blur-sm">
       <div className="w-full max-w-md rounded-2xl border border-slate-100 bg-white shadow-2xl ring-1 ring-black/5">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
+        <div className="flex items-center justify-between border-b border-slate-100 p-4">
           <h2 className="font-bold text-slate-900">{title}</h2>
           <button onClick={handleClose} className="cursor-pointer rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600">
             <TbX className="h-4 w-4" />
@@ -49,10 +49,10 @@ export default function Modal({ isOpen, onClose, title, confirmText, cancelText,
         </div>
 
         {/* Body */}
-        {children && <div className="px-6 py-4 text-sm text-slate-600">{children}</div>}
+        {children && <div className="p-4 text-sm text-slate-600">{children}</div>}
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-3 border-t border-slate-100 px-6 py-4">
+        <div className="flex items-center justify-end gap-3 border-t border-slate-100 p-4">
           {onCancel && (
             <button
               onClick={onCancel}
