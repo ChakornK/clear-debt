@@ -417,6 +417,9 @@ async def get_dashboard(user: dict = Depends(get_current_user)):
         events = db_data['events']
         raw_txns = db_data['raw_txns']
         cached_cat_map = db_data['cat_map']
+        monthly_budget = db_data.get('monthly_limit', 500)
+        weekly_budget = round(monthly_budget / 4.33, 2)
+        period_budget = monthly_budget * 3 # for 90 days
         
         # ── DEBT PROGRESS ──────────────────────────────
         total_debt = sum(d['balance'] for d in debts) if debts else 0
@@ -434,8 +437,7 @@ async def get_dashboard(user: dict = Depends(get_current_user)):
                 target_date = (datetime.now() + timedelta(days=months*30)).strftime("%B %Y")
 
         # ── ACHIEVEMENT ────────────────────────────────
-        # Streak logic: count weeks under a $500 budget
-        budget_limit = 500
+        # Streak logic: count weeks under the user's weekly budget limit
         streak = 0
         now = datetime.now()
         for i in range(12): # check last 12 weeks
@@ -444,7 +446,7 @@ async def get_dashboard(user: dict = Depends(get_current_user)):
             w_spent = sum(t['amount'] for t in raw_txns 
                          if w_start <= datetime.fromisoformat(t['date']) < w_end
                          and not t.get('is_income', False))
-            if w_spent < budget_limit:
+            if w_spent < weekly_budget:
                 streak += 1
             else:
                 break
@@ -573,13 +575,14 @@ async def get_dashboard(user: dict = Depends(get_current_user)):
             "achievement": achievement,
             "upcomingEvents": upcoming[:3],
             "weeklySpending": {
-                "budgetLimit": budget_limit,
+                "budgetLimit": weekly_budget,
                 "weeks": weeks
             },
             "dailyDistribution": daily,
             "spendingCategories": {
                 "total": round(total_sum, 2),
-                "categories": categories
+                "categories": categories,
+                "periodLimit": period_budget
             },
             "milestone": milestone
         }

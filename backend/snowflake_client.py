@@ -202,12 +202,23 @@ def get_dashboard_data(user_id):
         except:
             pass # Table might not exist yet
 
+        # 6. User Preferences
+        monthly_limit = 500
+        try:
+            cur.execute("SELECT MONTHLY_LIMIT FROM USER_PREFERENCES WHERE USER_ID = %s", (user_id,))
+            row = cur.fetchone()
+            if row:
+                monthly_limit = row[0]
+        except:
+            pass
+
         return {
             "debts": debts,
             "spending": spending,
             "events": events,
             "raw_txns": raw_txns,
-            "cat_map": cat_map
+            "cat_map": cat_map,
+            "monthly_limit": monthly_limit
         }
     finally:
         cur.close(); conn.close()

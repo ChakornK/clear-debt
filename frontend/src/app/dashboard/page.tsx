@@ -47,6 +47,7 @@ interface DashboardData {
   spendingCategories: {
     total: number;
     categories: Array<{ color: string; label: string; pct: number }>;
+    periodLimit: number;
   };
   milestone: {
     tag: string;
@@ -257,7 +258,7 @@ export default function Dashboard() {
                   const strokeWidth = 12;
                   const radius = (size - strokeWidth) / 2;
                   const circumference = 2 * Math.PI * radius;
-                  const progress = Math.min(spendingCategories.total / weeklySpending.budgetLimit, 1);
+                  const progress = Math.min(spendingCategories.total / spendingCategories.periodLimit, 1);
                   const dashOffset = circumference * (1 - progress);
                   return (
                     <div className="relative flex items-center justify-center" style={{ width: size, height: size }}>
@@ -314,7 +315,7 @@ export default function Dashboard() {
                     <TbAnalyze className="h-5 w-5" />
                     Weekly Spending Analysis
                   </h3>
-                  <p className="text-sm text-slate-500">Historical view vs. budget limit (${weeklySpending.budgetLimit})</p>
+                  <p className="text-sm text-slate-500">Historical view vs. weekly budget limit (${weeklySpending.budgetLimit.toFixed(0)})</p>
                 </div>
                 <div className="flex gap-3">
                   <span className="flex items-center gap-1.5 text-xs font-medium text-slate-500">
@@ -335,7 +336,7 @@ export default function Dashboard() {
                   <div className="w-full border-t border-slate-100"></div>
                   {/* Budget limit line sits at 100% of chart height */}
                   <div className="relative z-10 w-full border-t border-dashed border-red-400/50">
-                    <span className="absolute -top-5 right-0 text-[10px] font-bold text-red-400">BUDGET LIMIT (${weeklySpending.budgetLimit})</span>
+                    <span className="absolute -top-5 right-0 text-[10px] font-bold text-red-400">BUDGET LIMIT (${weeklySpending.budgetLimit.toFixed(0)})</span>
                   </div>
                   <div className="w-full border-t border-slate-100"></div>
                 </div>
