@@ -8,6 +8,7 @@ import AddButton from "@/components/AddButton";
 import { apiFetch } from "@/lib/api";
 import { DebtType } from "@/types/types";
 import GoogleCalendarSyncButton from "@/components/GoogleCalendarSyncButton";
+import { useRouter } from "next/navigation";
 
 interface Debt {
   id: string;
@@ -56,6 +57,7 @@ export default function Setup() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
+  const [showErrors, setShowErrors] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const [mode, setMode] = useState<"onboarding" | "edit">("onboarding");
@@ -69,6 +71,7 @@ export default function Setup() {
           const data = await res.json();
           if (data.has_completed_setup) {
             setMode("edit");
+            document.cookie = "onboarding_complete=1; path=/; max-age=31536000";
           }
           if (data.debts?.length > 0) setDebts(data.debts);
           if (data.activities?.length > 0) setActivities(data.activities);
@@ -83,8 +86,7 @@ export default function Setup() {
       }
     };
 
-    const searchParams = new URLSearchParams(window.location.search);
-    if (searchParams.get("mode") === "edit") {
+    if (document.cookie.includes("onboarding_complete=1")) {
       setMode("edit");
     }
 
@@ -142,12 +144,63 @@ export default function Setup() {
     setActivities((prev) => prev.map((a) => (a.id === id ? { ...a, [field]: value } : a)));
   };
 
+  const validateStep = (s: number) => {
+    if (s === 2) {
+      for (const debt of debts) {
+        if (!debt.name.trim()) return "Every debt must have a name.";
+        if (debt.balance <= 0) return `Balance for "${debt.name}" must be greater than 0.`;
+        if (debt.apr < 0 || debt.apr > 100) return `APR for "${debt.name}" must be between 0% and 100%.`;
+        if (debt.minimum < 0) return `Minimum payment for "${debt.name}" cannot be negative.`;
+        if (debt.minimum > debt.balance) return `Minimum payment for "${debt.name}" cannot exceed its balance.`;
+      }
+    }
+
+    if (s === 3) {
+      for (const activity of activities) {
+        if (!activity.name.trim()) return "Every spending trigger needs a name.";
+        if (activity.estimatedCost < 0) return `Estimated cost for "${activity.name}" cannot be negative.`;
+      }
+    }
+
+    if (s === 4) {
+      if (monthlyIncome <= 0) return "Please enter a valid monthly net income.";
+      if (monthlyLimit < 0) return "Monthly spending limit cannot be negative.";
+      if (monthlyLimit > monthlyIncome) return "Spending limit cannot exceed your total income.";
+      if (amountLeftOver < 0) return "Your expenses and debt minimums exceed your income. Please adjust your limits.";
+    }
+
+    return null;
+  };
+
+  const handleNextStep = (next: number) => {
+    setError("");
+    setShowErrors(false);
+
+    const validationError = validateStep(step);
+    if (validationError) {
+      setError(validationError);
+      setShowErrors(true);
+      return;
+    }
+
+    setStep(next);
+  };
+
+  const router = useRouter();
+
   const onSave = async () => {
     setError("");
-    const invalidDebts = debts.filter((d) => !d.name || d.balance < 0);
-    if (invalidDebts.length > 0) {
-      setError("Please ensure all debts have a name.");
-      return;
+    setShowErrors(false);
+
+    // Validate all steps in edit mode
+    for (let i = 2; i <= 4; i++) {
+      const validationError = validateStep(i);
+      if (validationError) {
+        setError(validationError);
+        setShowErrors(true);
+        window.scrollTo({ top: 0, behavior: "smooth" });
+        return;
+      }
     }
 
     setSaving(true);
@@ -165,10 +218,11 @@ export default function Setup() {
         }),
       });
 
+      document.cookie = "onboarding_complete=1; path=/; max-age=31536000";
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
       if (mode === "onboarding") {
-        window.location.href = "/dashboard";
+        router.push("/dashboard");
       }
     } catch (err: any) {
       setError("Failed to save. Please try again.");
@@ -217,6 +271,9 @@ export default function Setup() {
                 </div>
               ))}
             </div>
+            {error && mode === "onboarding" && (
+              <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-3 text-center text-xs font-bold text-red-600">{error}</div>
+            )}
             <div className="relative mt-4 h-1.5 w-full overflow-hidden rounded-full bg-slate-200">
               <div
                 className="absolute left-0 h-full bg-green-500 transition-all duration-500"
@@ -252,7 +309,7 @@ export default function Setup() {
               {mode === "onboarding" && (
                 <div className="mt-8 flex justify-end">
                   <button
-                    onClick={() => setStep(2)}
+                    onClick={() => handleNextStep(2)}
                     className="group flex items-center gap-2 rounded-xl bg-slate-900 px-8 py-3.5 font-bold text-white transition-all hover:bg-slate-800"
                   >
                     Continue to Debts
@@ -280,7 +337,7 @@ export default function Setup() {
 
               <div className="flex flex-col gap-6">
                 {debts.map((d) => (
-                  <DebtInputField key={d.id} id={d.id} debt={d} onRemoveClick={removeDebtElement} onFieldChange={onDebtFieldChange} />
+                  <DebtInputField key={d.id} id={d.id} debt={d} onRemoveClick={removeDebtElement} onFieldChange={onDebtFieldChange} showErrors={showErrors} />
                 ))}
                 <div className="flex justify-center">
                   <AddButton onClick={addDebtElement}>Add another debt source</AddButton>
@@ -296,7 +353,7 @@ export default function Setup() {
                     <TbArrowLeft className="h-5 w-5" /> Back
                   </button>
                   <button
-                    onClick={() => setStep(3)}
+                    onClick={() => handleNextStep(3)}
                     className="group flex items-center gap-2 rounded-xl bg-slate-900 px-8 py-3.5 font-bold text-white transition-all hover:bg-slate-800"
                   >
                     Define Triggers
@@ -322,7 +379,14 @@ export default function Setup() {
 
               <div className="grid grid-cols-1 gap-6">
                 {activities.map((a) => (
-                  <ActivityInputField key={a.id} id={a.id} activity={a} onFieldChange={onActivityFieldChange} onRemove={removeActivityElement} />
+                  <ActivityInputField
+                    key={a.id}
+                    id={a.id}
+                    activity={a}
+                    onFieldChange={onActivityFieldChange}
+                    onRemove={removeActivityElement}
+                    showErrors={showErrors}
+                  />
                 ))}
                 <div className="flex justify-center">
                   <AddButton onClick={addActivityElement}>Add another trigger</AddButton>
@@ -338,7 +402,7 @@ export default function Setup() {
                     <TbArrowLeft className="h-5 w-5" /> Back
                   </button>
                   <button
-                    onClick={() => setStep(4)}
+                    onClick={() => handleNextStep(4)}
                     className="group flex items-center gap-2 rounded-xl bg-slate-900 px-8 py-3.5 font-bold text-white transition-all hover:bg-slate-800"
                   >
                     Set Income & Goals
@@ -374,7 +438,7 @@ export default function Setup() {
                         value={monthlyIncome || ""}
                         placeholder="0.00"
                         onChange={(e) => setMonthlyIncome(parseFloat(e.target.value) || 0)}
-                        className="w-full rounded-2xl border border-slate-200 bg-white px-8 py-4 text-2xl font-black text-slate-900 outline-none transition-colors focus:border-green-400 focus:ring-4 focus:ring-green-50"
+                        className={`w-full rounded-2xl border border-slate-200 bg-white px-8 py-4 text-2xl font-black text-slate-900 outline-none transition-colors focus:border-green-400 focus:ring-4 focus:ring-green-50 ${showErrors && monthlyIncome <= 0 ? "border-red-400 bg-red-50 focus:ring-red-100" : ""}`}
                       />
                     </div>
                   </div>
@@ -389,7 +453,7 @@ export default function Setup() {
                         value={monthlyLimit || ""}
                         placeholder="0.00"
                         onChange={(e) => setMonthlyLimit(parseFloat(e.target.value) || 0)}
-                        className="w-full rounded-2xl border border-slate-200 bg-white px-8 py-4 text-2xl font-black text-slate-900 outline-none transition-colors focus:border-green-400 focus:ring-4 focus:ring-green-50"
+                        className={`w-full rounded-2xl border border-slate-200 bg-white px-8 py-4 text-2xl font-black text-slate-900 outline-none transition-colors focus:border-green-400 focus:ring-4 focus:ring-green-50 ${showErrors && (monthlyLimit < 0 || monthlyLimit > monthlyIncome) ? "border-red-400 bg-red-50 focus:ring-red-100" : ""}`}
                       />
                     </div>
                     <p className="mt-2 px-1 text-[10px] font-medium uppercase tracking-wide text-slate-400">Excludes debt minimums</p>

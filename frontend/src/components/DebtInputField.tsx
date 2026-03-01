@@ -16,6 +16,7 @@ interface DebtInputFieldProps {
   };
   onRemoveClick: MouseEventHandler<HTMLButtonElement>;
   onFieldChange: (id: string, field: string, value: string | number) => void;
+  showErrors?: boolean;
 }
 
 const DEBT_TYPE_ICONS: Record<string, any> = {
@@ -27,7 +28,7 @@ const DEBT_TYPE_ICONS: Record<string, any> = {
   "Other": TbDots,
 };
 
-export const DebtInputField = ({ id, debt, onRemoveClick, onFieldChange }: DebtInputFieldProps) => {
+export const DebtInputField = ({ id, debt, onRemoveClick, onFieldChange, showErrors }: DebtInputFieldProps) => {
   const debtTypes = Object.keys(DebtType).filter((key) => isNaN(Number(key)));
 
   const inputClass =
@@ -49,7 +50,7 @@ export const DebtInputField = ({ id, debt, onRemoveClick, onFieldChange }: DebtI
             value={debt.name}
             placeholder="e.g. Sapphire Preferred"
             onChange={(e) => onFieldChange(id, "name", e.target.value)}
-            className={inputClass}
+            className={`${inputClass} ${showErrors && !debt.name ? "border-red-400 bg-red-50 focus:ring-red-100" : ""}`}
           />
         </div>
 
@@ -83,7 +84,7 @@ export const DebtInputField = ({ id, debt, onRemoveClick, onFieldChange }: DebtI
               value={debt.balance || ""}
               placeholder="0.00"
               onChange={(e) => onFieldChange(id, "balance", parseFloat(e.target.value) || 0)}
-              className={`${inputClass}pl-7`}
+              className={`${inputClass}pl-7 ${showErrors && debt.balance < 0 ? "border-red-400 bg-red-50 focus:ring-red-100" : ""}`}
             />
           </div>
         </div>
@@ -99,7 +100,7 @@ export const DebtInputField = ({ id, debt, onRemoveClick, onFieldChange }: DebtI
               value={debt.apr || ""}
               placeholder="15.99"
               onChange={(e) => onFieldChange(id, "apr", parseFloat(e.target.value) || 0)}
-              className={`${inputClass}pr-8 text-right`}
+              className={`${inputClass}pr-8 text-right ${showErrors && (debt.apr < 0 || debt.apr > 100) ? "border-red-400 bg-red-50 focus:ring-red-100" : ""}`}
             />
             <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm text-slate-400">%</span>
           </div>
@@ -118,7 +119,7 @@ export const DebtInputField = ({ id, debt, onRemoveClick, onFieldChange }: DebtI
               value={debt.minimum || ""}
               placeholder="25.00"
               onChange={(e) => onFieldChange(id, "minimum", parseFloat(e.target.value) || 0)}
-              className={`${inputClass}pl-7`}
+              className={`${inputClass}pl-7 ${showErrors && (debt.minimum < 0 || debt.minimum > debt.balance) ? "border-red-400 bg-red-50 focus:ring-red-100" : ""}`}
             />
           </div>
         </div>

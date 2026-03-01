@@ -24,9 +24,10 @@ interface ActivityInputFieldProps {
   };
   onFieldChange: (id: number, field: string, value: string | number) => void;
   onRemove: (id: number) => void;
+  showErrors?: boolean;
 }
 
-export const ActivityInputField = ({ id, activity, onFieldChange, onRemove }: ActivityInputFieldProps) => {
+export const ActivityInputField = ({ id, activity, onFieldChange, onRemove, showErrors }: ActivityInputFieldProps) => {
   const currentCategory = activity.category || "Other";
   const CatIcon = TYPE_CONFIG[currentCategory]?.Icon || TbQuestionMark;
   const badgeClass = TYPE_CONFIG[currentCategory]?.badge || TYPE_CONFIG["Other"].badge;
@@ -45,7 +46,7 @@ export const ActivityInputField = ({ id, activity, onFieldChange, onRemove }: Ac
             value={activity.name}
             placeholder="e.g. Coffee"
             onChange={(e) => onFieldChange(id, "name", e.target.value)}
-            className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition-colors focus:border-green-400 focus:ring-2 focus:ring-green-100"
+            className={`w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition-colors focus:border-green-400 focus:ring-2 focus:ring-green-100 ${showErrors && !activity.name ? "border-red-400 bg-red-50 focus:ring-red-100" : ""}`}
           />
         </div>
 
@@ -59,7 +60,7 @@ export const ActivityInputField = ({ id, activity, onFieldChange, onRemove }: Ac
               value={activity.estimatedCost || ""}
               placeholder="0.00"
               onChange={(e) => onFieldChange(id, "estimatedCost", parseFloat(e.target.value) || 0)}
-              className="w-full rounded-xl border border-slate-200 bg-white py-2 pl-7 pr-3 text-sm text-slate-900 outline-none transition-colors focus:border-green-400 focus:ring-2 focus:ring-green-100"
+              className={`w-full rounded-xl border border-slate-200 bg-white py-2 pl-7 pr-3 text-sm text-slate-900 outline-none transition-colors focus:border-green-400 focus:ring-2 focus:ring-green-100 ${showErrors && activity.estimatedCost < 0 ? "border-red-400 bg-red-50 focus:ring-red-100" : ""}`}
             />
           </div>
         </div>

@@ -15,6 +15,7 @@ export default async function RootLayout({
 }>) {
   const cookieStore = await cookies();
   const hasToken = cookieStore.has("auth_token");
+  const hasCompletedOnboarding = cookieStore.has("onboarding_complete");
 
   return (
     <html lang="en">
@@ -25,7 +26,7 @@ export default async function RootLayout({
       </head>
       <body className="flex h-dvh bg-white selection:bg-green-100 selection:text-green-900">
         <GlobalProvider>
-          {hasToken && <Navbar />}
+          {hasToken && hasCompletedOnboarding && <Navbar />}
           <div className="grow overflow-auto">{children}</div>
         </GlobalProvider>
       </body>
