@@ -22,7 +22,7 @@ Manual debt entry for accounts outside Plaid
 All data unified in Snowflake as a single financial profile
 
 ### 2. Spending Behavior Analyzer
-Reads 90 days of transaction history and surfaces patterns — average monthly spend by category, recurring subscriptions, and seasonal spikes. This output feeds directly into the AI's reasoning when generating your repayment plan.
+Reads 90 days of transaction history and surfaces patterns — average monthly spend by category, recurring subscriptions, and seasonal spikes. This output feeds directly into the AI's reasoning when generating your repayment plan. Shows personalized spending insights - like a warning, win, or tip based on your actual financial patterns. It looks at your real Snowflake data: debts, transactions, and spending habits, and surfaces your single most relevant recent achievement, like a streak, savings goal hit, or budget win, to keep you motivated.
 
 ### 3. Calendar Intelligence Layer
 Overlays debt due dates, income events, and planned expenses on a monthly calendar

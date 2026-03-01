@@ -8,17 +8,17 @@ from plaid_client import create_link_token, exchange_public_token, get_accounts,
 from snowflake_client import (get_cached_category_mappings, get_transactions_raw, save_access_token, get_access_token,
   save_debts, get_debts, save_transactions, get_spending_summary,
   save_calendar_events, get_calendar_events, delete_calendar_event, save_plan, get_connection,
-  get_cached_milestone, save_milestone, save_category_mappings,
-  get_dashboard_data, save_user_preferences, get_user_preferences,
+  save_category_mappings, get_dashboard_data, save_user_preferences, get_user_preferences,
   ensure_schema, get_blocked_triggers, block_trigger, update_calendar_events_from_triggers)
 from milestones import get_top_milestones, format_time
 import time
-from cortex import generate_plan, chat, chat_stream, generate_milestone, classify_transactions, predict_event_spend, predict_events_batch
+from cortex import generate_plan, chat, chat_stream, classify_transactions, predict_event_spend, predict_events_batch
 from google_calendar_client import get_google_calendar_events
 from math_engine import calc_all_strategies
 from pydantic import BaseModel
 from typing import List
-from datetime import datetime, timedelta, date
+from datetime import datetime, timedelta, date, timezone
+from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
 import asyncio, os, json
 from auth import router as auth_router, get_current_user
@@ -42,7 +42,7 @@ app.include_router(auth_router)
 
 # ── CACHE ──────────────────────────────────────────────
 DASHBOARD_CACHE: dict = {}
-CACHE_TTL = 1  # Refresh frequently to ensure structure update
+CACHE_TTL = 1
 
 def _invalidate_dashboard(user_id: str):
   DASHBOARD_CACHE.pop(user_id, None)
@@ -73,17 +73,15 @@ def sync_plaid(user: dict = Depends(get_current_user)):
     if not access_token:
       raise HTTPException(status_code=404, detail="No linked account found")
 
-    # Fetch accounts, transactions, liabilities in parallel
     with ThreadPoolExecutor(max_workers=3) as ex:
       f_accounts = ex.submit(get_accounts, access_token)
-      f_txns   = ex.submit(get_transactions, access_token)
-      f_liab   = ex.submit(get_liabilities, access_token)
+      f_txns     = ex.submit(get_transactions, access_token)
+      f_liab     = ex.submit(get_liabilities, access_token)
 
-    accounts   = f_accounts.result()
-    transactions, _ = f_txns.result()
-    liabilities  = f_liab.result()
+    accounts            = f_accounts.result()
+    transactions, _     = f_txns.result()
+    liabilities         = f_liab.result()
 
-    # Save in parallel
     with ThreadPoolExecutor(max_workers=2) as ex:
       ex.submit(save_transactions, user_id, transactions)
       ex.submit(save_debts, user_id, liabilities)
@@ -124,16 +122,14 @@ async def sync_history(user: dict = Depends(get_current_user)):
 def save_debts_route(req: SaveDebtsRequest, user: dict = Depends(get_current_user)):
   try:
     user_id = user['sub']
-    debts  = [d.model_dump() for d in req.debts]
-    events = [e.model_dump() for e in req.calendar_events]
+    debts   = [d.model_dump() for d in req.debts]
+    events  = [e.model_dump() for e in req.calendar_events]
 
-    # All three writes in parallel
     with ThreadPoolExecutor(max_workers=3) as ex:
       ex.submit(save_debts, user_id, debts)
       ex.submit(save_calendar_events, user_id, events) if events else None
       ex.submit(save_user_preferences, user_id, req.monthly_income, req.monthly_limit, req.savings_pct)
 
-    # Propagate trigger edits to all future calendar events matching each label
     if events:
       update_calendar_events_from_triggers(user_id, events)
 
@@ -154,14 +150,13 @@ def get_user_setup_route(user: dict = Depends(get_current_user)):
 
     prefs, debts, events = f_prefs.result(), f_debts.result(), f_events.result()
 
-    # Filter invalid, deduplicate, and exclude permanently blocked triggers
     blocked = get_blocked_triggers(user_id)
     seen_labels: set = set()
     valid_events = []
     for e in events:
-      label = (e.get('label') or '').strip()
+      label    = (e.get('label') or '').strip()
       category = (e.get('type') or '').strip()
-      amount = e.get('amount') or 0
+      amount   = e.get('amount') or 0
       if not label or not category or amount <= 0:
         continue
       if label in blocked or label in seen_labels:
@@ -180,7 +175,7 @@ def get_user_setup_route(user: dict = Depends(get_current_user)):
       "activities": activities,
       "monthly_income": prefs['monthly_income'] if prefs else 0,
       "monthly_limit":  prefs['monthly_limit']  if prefs else 0,
-      "savings_pct":  prefs['savings_pct']   if prefs else 20,
+      "savings_pct":    prefs['savings_pct']     if prefs else 20,
     }
   except Exception as e:
     raise HTTPException(status_code=500, detail=str(e))
@@ -212,7 +207,6 @@ def get_events(user: dict = Depends(get_current_user)):
     prefs         = f_prefs.result()
     cat_map       = get_cached_category_mappings()
 
-    # Income events
     income_events = []
     if prefs and prefs.get('monthly_income', 0) > 0:
       now = datetime.now()
@@ -224,10 +218,9 @@ def get_events(user: dict = Depends(get_current_user)):
             "label": "Monthly Income",
             "amount": float(prefs['monthly_income']),
             "is_income": True,
-            "source": "generated",  # ← tag it
+            "source": "generated",
           })
 
-    # Classify unknown categories
     unknown = list({t['category'] for t in txns if t['category'] not in cat_map})
     if unknown:
       new_mappings = classify_transactions(unknown)
@@ -241,19 +234,17 @@ def get_events(user: dict = Depends(get_current_user)):
         "label": t['description'],
         "amount": float(t['amount']),
         "is_income": t.get('is_income', False),
-        "source": "transaction",  # ← tag it
+        "source": "transaction",
       }
       for t in txns
     ]
 
-    # Tag manual events
     tagged_manual = [{**e, "source": "manual"} for e in manual_events]
-
     return {"events": tagged_manual + final_txn_events + income_events}
   except Exception as e:
     print(f"Error in get_events: {e}")
     raise HTTPException(status_code=500, detail=str(e))
-  
+
 @app.post("/api/calendar")
 def save_events(events: List[CalendarEvent], user: dict = Depends(get_current_user)):
   try:
@@ -263,18 +254,18 @@ def save_events(events: List[CalendarEvent], user: dict = Depends(get_current_us
     raise HTTPException(status_code=500, detail=str(e))
 
 class DeleteEventRequest(BaseModel):
-    date: str
-    label: str
+  date: str
+  label: str
 
 @app.post("/api/calendar/delete")
 def delete_event(req: DeleteEventRequest, user: dict = Depends(get_current_user)):
-    try:
-        user_id = user['sub']
-        deleted = delete_calendar_event(user_id, req.date, req.label)
-        _invalidate_dashboard(user_id)
-        return {"deleted": deleted > 0}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+  try:
+    user_id = user['sub']
+    deleted = delete_calendar_event(user_id, req.date, req.label)
+    _invalidate_dashboard(user_id)
+    return {"deleted": deleted > 0}
+  except Exception as e:
+    raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/calendar/predict")
 async def predict_event_cost(req: PredictEventRequest, user: dict = Depends(get_current_user)):
@@ -303,7 +294,7 @@ def block_trigger_route(req: BlockTriggerRequest, user: dict = Depends(get_curre
 @app.post("/api/google-calendar/sync")
 async def sync_google_calendar(request: Request, user: dict = Depends(get_current_user)):
   try:
-    user_id = user['sub']
+    user_id      = user['sub']
     access_token = user.get('access_token')
     if not access_token:
       raise HTTPException(status_code=401, detail="Google access token not found. Please log in again.")
@@ -312,15 +303,14 @@ async def sync_google_calendar(request: Request, user: dict = Depends(get_curren
     if not google_events:
       return {"synced": 0, "events": []}
 
-    blocked = get_blocked_triggers(user_id)
-    # Filter out blocked labels from incoming Google events before any processing
+    blocked       = get_blocked_triggers(user_id)
     google_events = [e for e in google_events if e.get('label', '').strip() not in blocked]
     if not google_events:
       return {"synced": 0, "events": []}
 
     existing_events = get_calendar_events(user_id)
-    cache_lookup = {(e['label'], e['date'].split('T')[0]) for e in existing_events if e.get('amount', 0) > 0}
-    existing_map  = {(e['label'], e['date'].split('T')[0]): e for e in existing_events}
+    cache_lookup    = {(e['label'], e['date'].split('T')[0]) for e in existing_events if e.get('amount', 0) > 0}
+    existing_map    = {(e['label'], e['date'].split('T')[0]): e for e in existing_events}
 
     to_predict, already_predicted = [], []
     for e in google_events:
@@ -335,12 +325,12 @@ async def sync_google_calendar(request: Request, user: dict = Depends(get_curren
     new_estimated = []
     if to_predict:
       try:
-        predictions = predict_events_batch(to_predict)
+        predictions   = predict_events_batch(to_predict)
         new_estimated = [
           {
-            "date": e['date'],
-            "type": predictions[i].get('type', "Other") if i < len(predictions) else "Other",
-            "label": e['label'],
+            "date":   e['date'],
+            "type":   predictions[i].get('type', "Other") if i < len(predictions) else "Other",
+            "label":  e['label'],
             "amount": predictions[i].get('predictedAmount', 0) if i < len(predictions) else 0,
           }
           for i, e in enumerate(to_predict)
@@ -364,18 +354,18 @@ async def sync_google_calendar(request: Request, user: dict = Depends(get_curren
 async def generate_plan_route(req: GeneratePlanRequest, user: dict = Depends(get_current_user)):
   try:
     user_id = user['sub']
-    debts = get_debts(user_id)
+    debts   = get_debts(user_id)
     if not debts:
       raise HTTPException(status_code=400, detail="No debts found. Sync or add debts first.")
 
     with ThreadPoolExecutor(max_workers=2) as ex:
-      f_events  = ex.submit(get_calendar_events, user_id, False)
+      f_events   = ex.submit(get_calendar_events, user_id, False)
       f_spending = ex.submit(get_spending_summary, user_id)
 
-    events   = f_events.result()
-    spending = f_spending.result()
+    events     = f_events.result()
+    spending   = f_spending.result()
     strategies = calc_all_strategies(debts, req.extra_payment)
-    ai_plan = generate_plan(debts, events, spending, strategies)
+    ai_plan    = generate_plan(debts, events, spending, strategies)
     ai_plan['strategies'] = strategies
     save_plan(user_id, ai_plan)
     return {"plan": ai_plan}
@@ -388,11 +378,10 @@ async def generate_plan_route(req: GeneratePlanRequest, user: dict = Depends(get
 async def chat_route(req: ChatRequest, user: dict = Depends(get_current_user)):
   try:
     user_id = user['sub']
-    debts = get_debts(user_id)
+    debts   = get_debts(user_id)
     if not debts:
       def no_debt_stream():
         yield "No debts found. Please add your debts first so I can give you specific advice tailored to your situation."
-
       return StreamingResponse(no_debt_stream(), media_type="text/plain")
 
     plan = {}
@@ -410,7 +399,7 @@ async def chat_route(req: ChatRequest, user: dict = Depends(get_current_user)):
     except:
       pass
 
-    prefs = get_user_preferences(user_id)
+    prefs  = get_user_preferences(user_id)
     events = get_calendar_events(user_id, future_only=True)
 
     history = [m.dict() for m in (req.history or [])]
@@ -431,16 +420,15 @@ async def chat_route(req: ChatRequest, user: dict = Depends(get_current_user)):
 
 # ── DASHBOARD ──────────────────────────────────────────
 
-# Pre-built color map to avoid repeated dict lookups
 _CATEGORY_COLORS = {
-  "Housing": "bg-emerald-400",
+  "Housing":       "bg-emerald-400",
   "Food & Dining": "bg-orange-400",
-  "Transportation": "bg-blue-400",
-  "Healthcare": "bg-rose-400",
+  "Transportation":"bg-blue-400",
+  "Healthcare":    "bg-rose-400",
   "Entertainment": "bg-purple-400",
-  "Shopping": "bg-amber-400",
+  "Shopping":      "bg-amber-400",
   "Debt Payments": "bg-red-400",
-  "Other": "bg-slate-400",
+  "Other":         "bg-slate-400",
 }
 
 @app.get("/api/dashboard", response_model=DashboardResponse)
@@ -448,89 +436,66 @@ async def get_dashboard(user: dict = Depends(get_current_user)):
   try:
     user_id = user['sub']
 
-    # ── CACHE CHECK ────────────────────────────────
     now_ts = time.time()
     cached = DASHBOARD_CACHE.get(user_id)
     if cached and now_ts - cached['timestamp'] < CACHE_TTL:
       return cached['data']
 
-    # ── FETCH DATA ─────────────────────────────────
-    db_data     = get_dashboard_data(user_id)  # already runs 6 parallel queries
-    debts     = db_data['debts']
-    spending    = db_data['spending']
-    events    = db_data['events']
-    raw_txns    = db_data['raw_txns']
-    cat_map     = db_data['cat_map']
-    prefs       = db_data.get('prefs') or {}
-
-    # Monthly spending budget (what the weekly chart is based on)
+    db_data        = get_dashboard_data(user_id)
+    debts          = db_data['debts']
+    spending       = db_data['spending']
+    events         = db_data['events']
+    raw_txns       = db_data['raw_txns']
+    cat_map        = db_data['cat_map']
+    prefs          = db_data.get('prefs') or {}
     monthly_budget = db_data.get('monthly_limit', 500)
     weekly_budget  = round(monthly_budget / 4.33, 2)
     period_budget  = monthly_budget
+    today_date     = datetime.now().date()
+    now            = datetime.now()
 
-    today_date = datetime.now().date()
-    now    = datetime.now()
-
-    # ── PLANNED MONTHLY DEBT CONTRIBUTION ─────────
-    monthly_income = float(prefs.get('monthly_income') or 0)
-    monthly_limit  = float(prefs.get('monthly_limit') or monthly_budget)
-    savings_pct    = float(prefs.get('savings_pct') if prefs.get('savings_pct') is not None else 20)
-
-    total_min_payments = sum(float(d.get('minimum') or 0) for d in debts) if debts else 0.0
-    amount_left_over = monthly_income - monthly_limit - total_min_payments
-    if amount_left_over > 0:
-      to_savings = amount_left_over * (savings_pct / 100.0)
-      to_debt_extra = amount_left_over - to_savings
-    else:
-      to_savings = 0.0
-      to_debt_extra = 0.0
-
+    monthly_income      = float(prefs.get('monthly_income') or 0)
+    monthly_limit       = float(prefs.get('monthly_limit') or monthly_budget)
+    savings_pct         = float(prefs.get('savings_pct') if prefs.get('savings_pct') is not None else 20)
+    total_min_payments  = sum(float(d.get('minimum') or 0) for d in debts) if debts else 0.0
+    amount_left_over    = monthly_income - monthly_limit - total_min_payments
+    to_savings          = amount_left_over * (savings_pct / 100.0) if amount_left_over > 0 else 0.0
+    to_debt_extra       = (amount_left_over - to_savings) if amount_left_over > 0 else 0.0
     planned_monthly_debt_contribution = max(total_min_payments + to_debt_extra, 0.0)
 
     # ── CLASSIFY UNKNOWN CATEGORIES ────────────────
-    # Gathers all unique categories/labels from Plaid and Calendar that need classification
     to_classify = set()
     for s in spending:
       if s['category'] not in cat_map: to_classify.add(s['category'])
     for e in events:
-      # If the event already has a valid bucket name in its 'type' field (from sync_google_calendar/AI),
-      # we should add it to our cat_map so the rest of the logic treats it as known.
       if e.get('type') and e['type'] in _CATEGORY_COLORS and e['label'] not in cat_map:
-          cat_map[e['label']] = e['type']
-      
-      # If we still don't know the bucket for this label, and it's recent/future, classify it
+        cat_map[e['label']] = e['type']
       elif e.get('label') and e['label'] not in cat_map:
-          try:
-              e_dt = datetime.fromisoformat(e['date'].split('T')[0])
-              if e_dt >= (now - timedelta(days=30)):
-                  to_classify.add(e['label'])
-          except: continue
+        try:
+          e_dt = datetime.fromisoformat(e['date'].split('T')[0])
+          if e_dt >= (now - timedelta(days=30)):
+            to_classify.add(e['label'])
+        except: continue
 
     if to_classify:
       try:
-          new_mappings = classify_transactions(list(to_classify))
-          save_category_mappings(new_mappings)
-          cat_map.update(new_mappings)
+        new_mappings = classify_transactions(list(to_classify))
+        save_category_mappings(new_mappings)
+        cat_map.update(new_mappings)
       except: pass
 
-    # ── SPENDING CATEGORIES AGGREGATION ────────────
-    # Aggregate both summarized Plaid categories AND recent calendar events
+    # ── SPENDING CATEGORIES ────────────────────────
     raw_category_totals: dict = {}
-    
-    # Plaid transactions
     for s in spending:
       cat = s['category']
       raw_category_totals[cat] = raw_category_totals.get(cat, 0.0) + float(s['total'])
 
-    # Aggregate both summarized Plaid categories AND recent/upcoming calendar events
-    # We use a 60-day window: past 30 days to next 30 days to capture planned/recent spending
     window_start = (now - timedelta(days=30)).date()
-    window_end = (now + timedelta(days=30)).date()
+    window_end   = (now + timedelta(days=30)).date()
     for e in events:
       try:
-        # Handle Snowflake date strings (YYYY-MM-DD) or ISO strings
         e_date_str = e['date'].split('T')[0] if 'T' in str(e['date']) else str(e['date'])
-        e_dt = datetime.fromisoformat(e_date_str).date()
+        e_dt       = datetime.fromisoformat(e_date_str).date()
         if window_start <= e_dt <= window_end:
           label = e['label']
           raw_category_totals[label] = raw_category_totals.get(label, 0.0) + float(e.get('amount') or 0.0)
@@ -538,22 +503,19 @@ async def get_dashboard(user: dict = Depends(get_current_user)):
 
     buckets: dict = {}
     for cat, total in raw_category_totals.items():
-      # Important: bucket name must exactly match _CATEGORY_COLORS keys
       b_name = cat_map.get(cat, "Other")
       if b_name not in _CATEGORY_COLORS: b_name = "Other"
       buckets[b_name] = buckets.get(b_name, 0) + total
 
-    total_sum = sum(buckets.values()) or 1
-    
-    # Generate detailed category list
+    total_sum  = sum(buckets.values()) or 1
     categories = sorted(
       [
         {
-          "color": _CATEGORY_COLORS.get(cat_map.get(cat, "Other"), "bg-slate-400"),
-          "label": cat,
-          "pct": round((total / total_sum) * 100, 1),
+          "color":  _CATEGORY_COLORS.get(cat_map.get(cat, "Other"), "bg-slate-400"),
+          "label":  cat,
+          "pct":    round((total / total_sum) * 100, 1),
           "amount": round(total, 2),
-          "bucket": cat_map.get(cat, "Other")
+          "bucket": cat_map.get(cat, "Other"),
         }
         for cat, total in raw_category_totals.items() if total > 0
       ],
@@ -561,14 +523,13 @@ async def get_dashboard(user: dict = Depends(get_current_user)):
       reverse=True,
     )
 
-    # Bucketed data for the donut chart
     bucket_data = sorted(
       [
         {
-          "color": _CATEGORY_COLORS.get(label, "bg-slate-200"),
-          "label": label,
+          "color":  _CATEGORY_COLORS.get(label, "bg-slate-200"),
+          "label":  label,
           "amount": round(val, 2),
-          "pct": round((val / total_sum) * 100, 1),
+          "pct":    round((val / total_sum) * 100, 1),
         }
         for label, val in buckets.items() if val > 0
       ],
@@ -577,20 +538,18 @@ async def get_dashboard(user: dict = Depends(get_current_user)):
     )
 
     # ── DEBT PROGRESS ──────────────────────────────
-    total_debt = sum(d['balance'] for d in debts) if debts else 0
-    paid_this_month = planned_monthly_debt_contribution
-
-    target_date_str = ""
+    total_debt        = sum(d['balance'] for d in debts) if debts else 0
+    paid_this_month   = planned_monthly_debt_contribution
+    target_date_str   = ""
     if debts and planned_monthly_debt_contribution > 0:
-      months = int(total_debt / planned_monthly_debt_contribution)
-      if months < 1: months = 1
+      months = max(int(total_debt / planned_monthly_debt_contribution), 1)
       target_date_str = (now + timedelta(days=months * 30)).strftime("%B %Y")
 
     # ── STREAK & ACHIEVEMENT ──────────────────────
     week_sums = [0.0] * 13
     for t in raw_txns:
       if t.get('is_income') or cat_map.get(t['category']) == "Debt Payments": continue
-      delta = (today_date - datetime.fromisoformat(t['date']).date()).days
+      delta    = (today_date - datetime.fromisoformat(t['date']).date()).days
       week_idx = delta // 7
       if 0 <= week_idx <= 12: week_sums[week_idx] += t['amount']
 
@@ -611,9 +570,9 @@ async def get_dashboard(user: dict = Depends(get_current_user)):
       if e_dt >= now:
         time_str = e_dt.strftime("%a, %b %d, %H:%M") if e_dt.hour > 0 else e_dt.strftime("%a, %b %d")
         upcoming.append({
-          "time": time_str,
-          "cost": e['amount'],
-          "name": e['label'],
+          "time":     time_str,
+          "cost":     e['amount'],
+          "name":     e['label'],
           "location": "Remote",
           "category": e.get('type', "Other"),
         })
@@ -635,46 +594,30 @@ async def get_dashboard(user: dict = Depends(get_current_user)):
     _days_map = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
     daily = [
       {
-        "day": _days_map[(today_date - timedelta(days=i)).weekday()],
-        "spent": round(daily_buckets[today_date - timedelta(days=i)], 2),
+        "day":    _days_map[(today_date - timedelta(days=i)).weekday()],
+        "spent":  round(daily_buckets[today_date - timedelta(days=i)], 2),
         "active": i == 0,
       }
       for i in range(6, -1, -1)
     ]
 
-    # ── AI MILESTONE ───────────────────────────────
-    milestone = get_cached_milestone(user_id)
-    if not milestone:
-      try:
-        milestone = generate_milestone(debts, spending, events)
-        save_milestone(user_id, milestone)
-      except:
-        milestone = {
-          "tag": "Milestone Alert",
-          "title": "You're making great progress!",
-          "description": "Keep staying under your weekly budget to clear your debts faster.",
-          "primaryCTA": "View Plan",
-          "secondaryCTA": "Got it",
-        }
-
     # ── ASSEMBLE RESPONSE ──────────────────────────
     response_payload = {
       "debtProgress": {
-        "paid": round(paid_this_month, 2),
-        "total": round(total_debt, 2),
+        "paid":       round(paid_this_month, 2),
+        "total":      round(total_debt, 2),
         "targetDate": target_date_str,
       },
-      "achievement": achievement,
+      "achievement":    achievement,
       "upcomingEvents": upcoming,
       "weeklySpending": {"budgetLimit": weekly_budget, "weeks": weeks},
       "dailyDistribution": daily,
       "spendingCategories": {
-        "total": round(total_sum, 2),
-        "categories": categories,
+        "total":       round(total_sum, 2),
+        "categories":  categories,
         "bucket_data": bucket_data,
         "periodLimit": period_budget,
       },
-      "milestone": milestone,
     }
 
     DASHBOARD_CACHE[user_id] = {"data": response_payload, "timestamp": time.time()}
@@ -683,103 +626,103 @@ async def get_dashboard(user: dict = Depends(get_current_user)):
   except Exception as e:
     print(f"Error in get_dashboard: {str(e)}")
     raise HTTPException(status_code=500, detail=str(e))
+
+# ── NUDGES ─────────────────────────────────────────────
+
 @app.get("/api/nudges")
 async def get_nudges(user: dict = Depends(get_current_user)):
-    try:
-        user_id = user['sub']
-        raw_txns = get_transactions_raw(user_id)
-        cat_map  = get_cached_category_mappings()
+  try:
+    user_id  = user['sub']
+    raw_txns = get_transactions_raw(user_id)
+    cat_map  = get_cached_category_mappings()
 
-        from collections import defaultdict
-        from datetime import datetime, timedelta, timezone
+    nudges    = []
+    now       = datetime.now(timezone.utc).replace(tzinfo=None)
+    cutoff_30 = now - timedelta(days=30)
+    cutoff_60 = now - timedelta(days=60)
 
-        nudges = []
-        now = datetime.now(timezone.utc).replace(tzinfo=None)
+    # ── Weekend vs weekday ───────────────────────────
+    weekend_total, weekend_days = 0.0, 0
+    weekday_total, weekday_days = 0.0, 0
 
-        cutoff_30 = now - timedelta(days=30)
-        cutoff_60 = now - timedelta(days=60)
+    for t in raw_txns:
+      if t.get("is_income"): continue
+      d = datetime.fromisoformat(t["date"])
+      if (now - d).days > 30: continue
+      if d.weekday() >= 5:
+        weekend_total += t["amount"]; weekend_days += 1
+      else:
+        weekday_total += t["amount"]; weekday_days += 1
 
-        # ── Weekend vs weekday spending ──────────────────
-        weekend_total, weekend_days = 0.0, 0
-        weekday_total, weekday_days = 0.0, 0
+    if weekend_days > 0 and weekday_days > 0:
+      avg_weekend = weekend_total / weekend_days
+      avg_weekday = weekday_total / weekday_days
+      if avg_weekend > avg_weekday * 1.2:
+        pct = round((avg_weekend - avg_weekday) / avg_weekday * 100)
+        nudges.append({"type": "warning", "message": f"You spend {pct}% more on weekends — heads up this Saturday."})
 
-        for t in raw_txns:
-            if t.get("is_income"): continue
-            d = datetime.fromisoformat(t["date"])
-            if (now - d).days > 30: continue
-            if d.weekday() >= 5:
-                weekend_total += t["amount"]; weekend_days += 1
-            else:
-                weekday_total += t["amount"]; weekday_days += 1
+    # ── Fastest growing category ─────────────────────
+    this_period = defaultdict(float)
+    last_period = defaultdict(float)
 
-        if weekend_days > 0 and weekday_days > 0:
-            avg_weekend = weekend_total / weekend_days
-            avg_weekday = weekday_total / weekday_days
-            if avg_weekend > avg_weekday * 1.2:
-                pct = round((avg_weekend - avg_weekday) / avg_weekday * 100)
-                nudges.append({"type": "warning", "message": f"You spend {pct}% more on weekends — heads up this Saturday."})
+    for t in raw_txns:
+      if t.get("is_income"): continue
+      d      = datetime.fromisoformat(t["date"])
+      bucket = cat_map.get(t["category"], "Other")
+      if d >= cutoff_30:   this_period[bucket] += t["amount"]
+      elif d >= cutoff_60: last_period[bucket] += t["amount"]
 
-        # ── Fastest growing category (rolling 30 vs 30-60 days) ──
-        this_period = defaultdict(float)
-        last_period = defaultdict(float)
+    biggest_growth, biggest_cat, biggest_pct = 0.0, None, 0
+    for cat, amt in this_period.items():
+      prev = last_period.get(cat, 0)
+      if prev > 0:
+        growth = (amt - prev) / prev * 100
+        if growth > biggest_growth:
+          biggest_growth, biggest_cat, biggest_pct = growth, cat, round(growth)
 
-        for t in raw_txns:
-            if t.get("is_income"): continue
-            d = datetime.fromisoformat(t["date"])
-            bucket = cat_map.get(t["category"], "Other")
-            if d >= cutoff_30:   this_period[bucket] += t["amount"]
-            elif d >= cutoff_60: last_period[bucket] += t["amount"]
+    if biggest_cat and biggest_pct > 10:
+      nudges.append({"type": "insight", "message": f"{biggest_cat} is your fastest-growing category — up {biggest_pct}% this month."})
 
-        biggest_growth, biggest_cat, biggest_pct = 0.0, None, 0
-        for cat, amt in this_period.items():
-            prev = last_period.get(cat, 0)
-            if prev > 0:
-                growth = (amt - prev) / prev * 100
-                if growth > biggest_growth:
-                    biggest_growth, biggest_cat, biggest_pct = growth, cat, round(growth)
+    # ── Category that dropped ────────────────────────
+    biggest_drop, drop_cat, drop_amt = 0.0, None, 0
+    for cat, prev in last_period.items():
+      curr = this_period.get(cat, 0)
+      if prev > 0 and curr < prev:
+        drop = prev - curr
+        if drop > biggest_drop:
+          biggest_drop, drop_cat, drop_amt = drop, cat, round(drop)
 
-        if biggest_cat and biggest_pct > 10:
-            nudges.append({"type": "insight", "message": f"{biggest_cat} is your fastest-growing category — up {biggest_pct}% this month."})
+    if drop_cat:
+      nudges.append({"type": "win", "message": f"Your {drop_cat} spend dropped ${drop_amt} vs last month. Great work!"})
 
-        # ── Category that dropped (win) ──────────────────
-        biggest_drop, drop_cat, drop_amt = 0.0, None, 0
-        for cat, prev in last_period.items():
-            curr = this_period.get(cat, 0)
-            if prev > 0 and curr < prev:
-                drop = prev - curr
-                if drop > biggest_drop:
-                    biggest_drop, drop_cat, drop_amt = drop, cat, round(drop)
+    # ── Tip ──────────────────────────────────────────
+    if this_period:
+      top_cat = max(this_period, key=this_period.__getitem__)
+      nudges.append({"type": "tip", "message": f"Your biggest spend this month is {top_cat} — try setting a weekly cap to stay on track."})
 
-        if drop_cat:
-            nudges.append({"type": "win", "message": f"Your {drop_cat} spend dropped ${drop_amt} vs last month. Great work!"})
+    return nudges[:3] if nudges else [
+      {"type": "tip", "message": "Keep logging your spending to unlock personalized nudges!"}
+    ]
 
-        # ── Tip: biggest single category this period ─────
-        if this_period:
-            top_cat = max(this_period, key=this_period.__getitem__)
-            nudges.append({"type": "tip", "message": f"Your biggest spend this month is {top_cat} — try setting a weekly cap to stay on track."})
+  except Exception as e:
+    raise HTTPException(status_code=500, detail=str(e))
 
-        return nudges[:3] if nudges else [
-            {"type": "tip", "message": "Keep logging your spending to unlock personalized nudges!"}
-        ]
+# ── MILESTONES ─────────────────────────────────────────
 
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-    
-    
 @app.get("/api/milestones")
 async def get_milestones(user: dict = Depends(get_current_user)):
-    try:
-        from snowflake_client import get_user_milestones
-        raw = get_user_milestones(user['sub'])
-        top3 = get_top_milestones(raw)
-        return [
-            {
-                "title": m["title"],
-                "description": m["description"],
-                "time": format_time(m["timestamp"]),
-                "badge": m["badge"],
-            }
-            for m in top3
-        ]
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+  try:
+    from snowflake_client import get_user_milestones
+    raw  = get_user_milestones(user['sub'])
+    top3 = get_top_milestones(raw)
+    return [
+      {
+        "title":       m["title"],
+        "description": m["description"],
+        "time":        format_time(m["timestamp"]),
+        "badge":       m["badge"],
+      }
+      for m in top3
+    ]
+  except Exception as e:
+    raise HTTPException(status_code=500, detail=str(e))

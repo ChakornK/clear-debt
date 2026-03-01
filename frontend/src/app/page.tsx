@@ -16,11 +16,11 @@ export default function Home() {
             <div className="flex flex-col items-center text-center">
               <h1 className="max-w-4xl text-5xl font-black tracking-tight text-white sm:text-7xl lg:text-8xl">ClearDebt</h1>
               <h2 className="bg-linear-to-r from-green-400 to-emerald-500 bg-clip-text text-4xl font-black tracking-tight text-transparent sm:text-6xl lg:text-7xl">
-                Reclaim Your Freedom
+                Pay off debt smarter
               </h2>
 
               <p className="mt-8 max-w-2xl text-lg font-medium text-slate-400 sm:text-xl/8">
-                The AI-powered command center for your debt elimination journey. Sync your bank, connect your calendar, and watch your balance hit zero.
+                AI that knows your calendar, your spending, and your next paycheck
               </p>
 
               <div className="mt-12 flex flex-col items-center gap-6">

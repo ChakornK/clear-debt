@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { apiFetch } from "@/lib/api";
 import { TbLoader2, TbSend, TbSparkles } from "react-icons/tb";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 type ChatRole = "user" | "assistant";
 
@@ -174,9 +176,42 @@ export default function ChatPage() {
               </div>
             : <div key={idx} className="flex items-start gap-3">
                 <AssistantAvatar />
-                <p className="max-w-[75%] rounded-2xl rounded-tl-sm border border-slate-700 bg-slate-700 px-4 py-2.5 text-sm leading-relaxed text-slate-100 shadow-sm">
-                  {m.content || <span className="text-slate-400">…</span>}
-                </p>
+                <div className="max-w-[85%] rounded-2xl rounded-tl-sm border border-slate-700 bg-slate-700 px-4 py-2.5 text-sm leading-relaxed text-slate-100 shadow-sm overflow-hidden prose prose-invert prose-emerald prose-sm">
+                  {m.content ?
+                    <ReactMarkdown
+                      remarkPlugins={[remarkGfm]}
+                      components={{
+                        p: ({ node, ...props }) => <p className="mb-2 last:mb-0" {...props} />,
+                        ul: ({ node, ...props }) => <ul className="mb-2 ml-4 list-disc last:mb-0" {...props} />,
+                        ol: ({ node, ...props }) => <ol className="mb-2 ml-4 list-decimal last:mb-0" {...props} />,
+                        li: ({ node, ...props }) => <li className="mb-1" {...props} />,
+                        code({ node, inline, className, children, ...props }: any) {
+                          return inline ?
+                              <code className="rounded bg-slate-800 px-1 py-0.5 font-mono text-emerald-400" {...props}>
+                                {children}
+                              </code>
+                            : <code className="block rounded-lg bg-slate-800 p-3 font-mono text-emerald-400 overflow-x-auto my-2" {...props}>
+                                {children}
+                              </code>;
+                        },
+                        h1: ({ node, ...props }) => <h1 className="mb-2 mt-4 text-base font-bold text-white first:mt-0" {...props} />,
+                        h2: ({ node, ...props }) => <h2 className="mb-2 mt-3 text-sm font-bold text-white first:mt-0" {...props} />,
+                        h3: ({ node, ...props }) => <h3 className="mb-1 mt-2 text-xs font-bold text-white first:mt-0" {...props} />,
+                        blockquote: ({ node, ...props }) => <blockquote className="border-l-2 border-emerald-500 pl-3 italic text-slate-400 my-2" {...props} />,
+                        a: ({ node, ...props }) => (
+                          <a
+                            className="text-emerald-400 underline decoration-emerald-400/30 underline-offset-2 hover:text-emerald-300"
+                            {...props}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          />
+                        ),
+                      }}
+                    >
+                      {m.content}
+                    </ReactMarkdown>
+                  : <span className="text-slate-400 italic">Thinking…</span>}
+                </div>
               </div>,
           )}
 

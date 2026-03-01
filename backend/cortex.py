@@ -187,32 +187,6 @@ GUIDELINES:
         if text:
             yield text
 
-def generate_milestone(debts, spending, events):
-    debt_summary = ", ".join([f"{d['name']} (${d['balance']})" for d in debts])
-    leisure_spend = sum(s['total'] for s in spending if s['category'] in ['Dining', 'Entertainment', 'Subscriptions'])
-    
-    prompt = f"""You are a helpful financial AI. Based on the following data, generate a encouraging milestone alert for a user's dashboard.
-    
-    DEBTS: {debt_summary}
-    LEISURE SPENDING (last 90 days): ${leisure_spend}
-    UPCOMING EVENTS: {", ".join([e['label'] for e in events[:2]])}
-    
-    Return ONLY JSON with these keys:
-    {{
-      "tag": "Short tag like 'Milestone Alert'",
-      "title": "Exciting title about saving or progress",
-      "description": "Short explanation of how this helps their debt",
-      "primaryCTA": "Action button text",
-      "secondaryCTA": "Dismiss/Details text"
-    }}"""
-
-    response = client.models.generate_content(
-        model='models/gemma-3-27b-it',
-        contents=prompt
-    )
-    clean = response.text.strip().replace('```json', '').replace('```', '').strip()
-    return json.loads(clean)
-
 def predict_event_spend(label: str, date: str):
     prompt = f"""You are a personal finance assistant. A user has added a calendar event called "{label}" on {date}.
 
