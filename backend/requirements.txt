@@ -1,9 +1,12 @@
 fastapi
 fastapi[standard]
-uvicorn
+uvicorn[standard]
 plaid-python
 pydantic
 python-dotenv
 snowflake
 snowflake-ml-python
 snowflake-snowpark-python
+authlib
+itsdangerous
+httpx

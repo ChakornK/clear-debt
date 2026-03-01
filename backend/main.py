@@ -1,5 +1,6 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.sessions import SessionMiddleware
 from models import ExchangeTokenRequest, SaveDebtsRequest, GeneratePlanRequest, ChatRequest, CalendarEvent
 from plaid_client import create_link_token, exchange_public_token, get_accounts, get_transactions, get_liabilities
 from snowflake_client import (save_access_token, get_access_token, save_debts,
@@ -10,12 +11,23 @@ from math_engine import calc_all_strategies
 from pydantic import BaseModel
 from typing import List
 from datetime import datetime, timedelta
-import random
+import random, os
+from auth import router as auth_router
 
 app = FastAPI(title="ClearDebt API")
 
+# ── MIDDLEWARE ─────────────────────────────────────────
 app.add_middleware(CORSMiddleware,
-    allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+    allow_origins=[os.getenv("FRONTEND_URL", "http://localhost:3000")], 
+    allow_methods=["*"], 
+    allow_headers=["*"],
+    allow_credentials=True)
+
+app.add_middleware(SessionMiddleware, secret_key=os.getenv("SECRET_KEY", "fallback_secret"))
+
+# ── ROUTES ─────────────────────────────────────────────
+app.include_router(auth_router)
+
 
 # ── PLAID ROUTES ──────────────────────────────────────
 
