@@ -12,7 +12,9 @@ def get_connection():
         warehouse=os.getenv('SF_WAREHOUSE'),
         database=os.getenv('SF_DATABASE'),
         schema=os.getenv('SF_SCHEMA'),
-        role=os.getenv('SF_ROLE')
+        role=os.getenv('SF_ROLE'),
+        login_timeout=30,
+        network_timeout=30
     )
 
 def save_access_token(user_id, access_token, item_id):
@@ -56,6 +58,19 @@ def get_debts(user_id):
     cols = ['id','name','type','balance','apr','minimum','due','source']
     cur.close(); conn.close()
     return [dict(zip(cols, row)) for row in rows]
+
+def get_transactions_raw(user_id):
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT TX_DATE, CATEGORY, AMOUNT, DESCRIPTION 
+        FROM TRANSACTIONS
+        WHERE USER_ID = %s
+        ORDER BY TX_DATE DESC
+    """, (user_id,))
+    rows = cur.fetchall()
+    cur.close(); conn.close()
+    return [{'date': str(r[0]), 'category': r[1], 'amount': r[2], 'description': r[3]} for r in rows]
 
 def save_transactions(user_id, transactions):
     conn = get_connection()

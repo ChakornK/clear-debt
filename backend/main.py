@@ -1,12 +1,16 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from models import ExchangeTokenRequest, SaveDebtsRequest, GeneratePlanRequest, ChatRequest
+from models import ExchangeTokenRequest, SaveDebtsRequest, GeneratePlanRequest, ChatRequest, CalendarEvent
 from plaid_client import create_link_token, exchange_public_token, get_accounts, get_transactions, get_liabilities
 from snowflake_client import (save_access_token, get_access_token, save_debts,
-    get_debts, save_transactions, get_spending_summary,
+    get_debts, save_transactions, get_transactions_raw, get_spending_summary,
     save_calendar_events, get_calendar_events, save_plan)
 from cortex import generate_plan, chat
 from math_engine import calc_all_strategies
+from pydantic import BaseModel
+from typing import List
+from datetime import datetime, timedelta
+import random
 
 app = FastAPI(title="ClearDebt API")
 
@@ -52,8 +56,8 @@ def sync_plaid(user_id: str):
 @app.post("/api/debts/save")
 def save_debts_route(req: SaveDebtsRequest):
     try:
-        debts = [d.dict() for d in req.debts]
-        events = [e.dict() for e in req.calendar_events]
+        debts = [d.model_dump() for d in req.debts]
+        events = [e.model_dump() for e in req.calendar_events]
         save_debts(req.user_id, debts)
         if events:
             save_calendar_events(req.user_id, events)
@@ -69,11 +73,21 @@ def get_debts_route(user_id: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 # ── CALENDAR ROUTES ───────────────────────────────────
+class CalendarResponse(BaseModel):
+    events: List[CalendarEvent]
 
-@app.get("/api/calendar/{user_id}")
+@app.get("/api/calendar/{user_id}", response_model=CalendarResponse)
 def get_events(user_id: str):
     try:
         return {"events": get_calendar_events(user_id, future_only=True)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    
+@app.post("/api/calendar/{user_id}")
+def save_events(user_id: str, events: List[CalendarEvent]):
+    try:
+        save_calendar_events(user_id, [e.model_dump() for e in events])
+        return {"saved": len(events)}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
