@@ -485,7 +485,7 @@ export default function Setup() {
                   </div>
 
                   <div>
-                    <label className="mb-2 block text-xs font-bold uppercase tracking-widest text-slate-400">Strict Monthly Limit</label>
+                    <label className="mb-2 block text-xs font-bold uppercase tracking-widest text-slate-400">Monthly Budget</label>
                     <div className="relative">
                       <span className="pointer-events-none absolute inset-y-0 left-4 flex items-center text-lg font-bold text-slate-400">$</span>
                       <input
@@ -644,7 +644,7 @@ export default function Setup() {
             <button
               onClick={onSave}
               disabled={saving}
-              className="mx-auto flex w-full max-w-lg items-center justify-center gap-2 rounded-2xl bg-slate-900 px-8 py-5 text-lg font-black text-white shadow-xl transition-all hover:bg-slate-800 active:scale-95 disabled:opacity-50"
+              className="mx-auto flex w-full max-w-lg items-center justify-center gap-2 rounded-2xl bg-slate-900 px-8 py-5 text-lg font-black text-white shadow-xl transition-all hover:bg-slate-800 active:scale-95 disabled:bg-slate-600"
             >
               {saving ?
                 <TbLoader className="h-6 w-6 animate-spin" />
