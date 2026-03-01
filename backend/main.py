@@ -102,7 +102,7 @@ class CalendarResponse(BaseModel):
 def get_events(user: dict = Depends(get_current_user)):
     try:
         user_id = user['sub']
-        return {"events": get_calendar_events(user_id, future_only=True)}
+        return {"events": get_calendar_events(user_id)}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
