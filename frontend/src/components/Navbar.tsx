@@ -5,7 +5,15 @@ import { cva } from "class-variance-authority";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useContext, useEffect } from "react";
-import { TbAdjustments, TbAdjustmentsFilled, TbCalendarMonth, TbCalendarMonthFilled, TbLayoutDashboard, TbLayoutDashboardFilled } from "react-icons/tb";
+import {
+  TbAdjustments,
+  TbAdjustmentsFilled,
+  TbCalendarMonth,
+  TbCalendarMonthFilled,
+  TbLayoutDashboard,
+  TbLayoutDashboardFilled,
+  TbLogout,
+} from "react-icons/tb";
 
 const routes = [
   {
@@ -33,6 +41,7 @@ const navLink = cva("flex items-center gap-2 rounded-md p-2", {
     intent: {
       selected: "bg-green-600/10 text-green-900",
       unselected: "hover:bg-neutral-200/50",
+      danger: "bg-red-600/10 text-red-900",
     },
   },
 });
@@ -71,6 +80,12 @@ export const Navbar = () => {
           <p>{route.name}</p>
         </Link>
       ))}
+      <div className="grow"></div>
+
+      <Link href={process.env.NEXT_PUBLIC_API_URL + "/api/auth/logout"} className={navLink({ intent: "danger" })}>
+        <TbLogout />
+        <p>Logout</p>
+      </Link>
     </nav>
   );
 };
