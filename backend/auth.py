@@ -73,10 +73,17 @@ async def auth_callback(request: Request):
         }
         
         jwt_token = create_access_token(jwt_payload)
-
         frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
-        # Pass the token to the frontend via query param for the first time
-        return RedirectResponse(url=f"{frontend_url}/dashboard?token={jwt_token}")
+        
+        response = RedirectResponse(url=f"{frontend_url}/dashboard")
+        response.set_cookie(
+            key="auth_token", 
+            value=jwt_token, 
+            max_age=60 * 60 * 24 * 7, 
+            samesite="lax",
+            httponly=False
+        )
+        return response
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
