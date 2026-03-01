@@ -74,12 +74,26 @@ def classify_transactions(categories_list):
         return json.loads(clean)
     except Exception as e:
         print(f"Classification error: {e}")
-        # Simple fallback map
+        # Expanded fallback map
         fallback = {}
-        essentials = ['Groceries', 'Utilities', 'Rent', 'Insurance', 'Healthcare', 'Transport']
+        rules = {
+            'Housing': ['Rent', 'Mortgage', 'Utilities', 'Electric', 'Water', 'Internet', 'Home'],
+            'Food & Dining': ['Food', 'Drink', 'Restaurant', 'Dining', 'Grocery', 'Cafe', 'Pizza', 'Coffee'],
+            'Transportation': ['Uber', 'Lyft', 'Gas', 'Transport', 'Car', 'Taxi', 'Parking', 'Transit'],
+            'Healthcare': ['Health', 'Pharmacy', 'Doctor', 'Hospital', 'Insurance', 'Clinic', 'Dental'],
+            'Entertainment': ['Netflix', 'Spotify', 'Movie', 'Game', 'Concert', 'Event', 'Show', 'Stream'],
+            'Shopping': ['Amazon', 'Walmart', 'Target', 'Shop', 'Mall', 'Store', 'Gift', 'Clothing'],
+            'Debt Payments': ['Credit Card', 'Loan', 'Interest', 'Payment', 'Amex', 'Visa', 'Mastercard']
+        }
         for c in categories_list:
-            if any(e.lower() in c.lower() for e in essentials): fallback[c] = 'Housing' # or appropriate
-            else: fallback[c] = 'Other'
+            found = False
+            for bucket, keywords in rules.items():
+                if any(k.lower() in c.lower() for k in keywords):
+                    fallback[c] = bucket
+                    found = True
+                    break
+            if not found:
+                fallback[c] = 'Other'
         return fallback
 
 def chat(debts, plan, history):
@@ -225,19 +239,21 @@ Respond ONLY with valid JSON, no markdown:
 
 def predict_events_batch(events: list):
     event_list = "\n".join([f"- {e['label']} on {e['date']}" for e in events])
-    prompt = f"""You are a personal finance assistant. A user has these calendar events for the next 30 days:
+    prompt = f"""You are a personal finance assistant. A user has these calendar events from the last 30 days and the next 30 days:
 {event_list}
 
-Predict the likely spending in CAD for EACH event. For each event, classify the "type" as one of:
+Predict the likely spending in CAD for EACH event. Even if you are unsure, provide a reasonable estimate based on typical costs for such activities (e.g., a coffee catchup is $10-15, a dinner is $40-60, a flight is $200-500). 
+
+For each event, classify the "type" as one of:
 'Housing', 'Food & Dining', 'Transportation', 'Healthcare', 'Entertainment', 'Shopping', 'Debt Payments', 'Other'.
 
 Respond ONLY with a JSON array of objects, one for each event in the exact same order:
 [
   {{
     "label": "event label",
-    "predictedAmount": 25,
-    "type": "other",
-    "explanation": "Brief reasoning"
+    "predictedAmount": 25.0,
+    "type": "Food & Dining",
+    "explanation": "Reasoning for the cost and category"
   }},
   ...
 ]"""

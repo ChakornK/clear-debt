@@ -300,7 +300,7 @@ def get_dashboard_data(user_id):
       cur.execute("""
         SELECT CATEGORY, ROUND(SUM(AMOUNT), 2), ROUND(AVG(AMOUNT), 2)
         FROM TRANSACTIONS
-        WHERE USER_ID = %s AND TX_DATE >= DATEADD(day, -90, CURRENT_DATE)
+        WHERE USER_ID = %s AND TX_DATE >= DATEADD(day, -30, CURRENT_DATE)
           AND IS_INCOME = FALSE
         GROUP BY CATEGORY ORDER BY 2 DESC
       """, (user_id,))

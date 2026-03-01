@@ -41,7 +41,7 @@ app.include_router(auth_router)
 
 # ── CACHE ──────────────────────────────────────────────
 DASHBOARD_CACHE: dict = {}
-CACHE_TTL = 300  # 5 minutes
+CACHE_TTL = 1  # Refresh frequently to ensure structure update
 
 def _invalidate_dashboard(user_id: str):
   DASHBOARD_CACHE.pop(user_id, None)
@@ -465,7 +465,7 @@ async def get_dashboard(user: dict = Depends(get_current_user)):
     # Monthly spending budget (what the weekly chart is based on)
     monthly_budget = db_data.get('monthly_limit', 500)
     weekly_budget  = round(monthly_budget / 4.33, 2)
-    period_budget  = monthly_budget * 3
+    period_budget  = monthly_budget
 
     today_date = datetime.now().date()
     now    = datetime.now()
@@ -486,59 +486,117 @@ async def get_dashboard(user: dict = Depends(get_current_user)):
 
     planned_monthly_debt_contribution = max(total_min_payments + to_debt_extra, 0.0)
 
-    # ── CLASSIFY UNKNOWN CATEGORIES (one batch) ────
-    unknown = list({
-      label
-      for source in (spending, raw_txns, events)
-      for label in ([s['category'] for s in source] if source and 'category' in (source[0] if source else {}) else [e['label'] for e in source])
-      if label not in cat_map
-    })
-    # Simpler version: gather all unknown from each source separately
-    unknown_cats = list({
-      c for c in
-        [s['category'] for s in spending] +
-        [t['category'] for t in raw_txns] +
-        [e['label'] for e in events if datetime.fromisoformat(e['date']) >= now]
-      if c not in cat_map
-    })
-    if unknown_cats:
-      new_mappings = classify_transactions(unknown_cats)
-      save_category_mappings(new_mappings)
-      cat_map.update(new_mappings)
+    # ── CLASSIFY UNKNOWN CATEGORIES ────────────────
+    # Gathers all unique categories/labels from Plaid and Calendar that need classification
+    to_classify = set()
+    for s in spending:
+      if s['category'] not in cat_map: to_classify.add(s['category'])
+    for e in events:
+      # If the event already has a valid bucket name in its 'type' field (from sync_google_calendar/AI),
+      # we should add it to our cat_map so the rest of the logic treats it as known.
+      if e.get('type') and e['type'] in _CATEGORY_COLORS and e['label'] not in cat_map:
+          cat_map[e['label']] = e['type']
+      
+      # If we still don't know the bucket for this label, and it's recent/future, classify it
+      elif e.get('label') and e['label'] not in cat_map:
+          try:
+              e_dt = datetime.fromisoformat(e['date'].split('T')[0])
+              if e_dt >= (now - timedelta(days=30)):
+                  to_classify.add(e['label'])
+          except: continue
+
+    if to_classify:
+      try:
+          new_mappings = classify_transactions(list(to_classify))
+          save_category_mappings(new_mappings)
+          cat_map.update(new_mappings)
+      except: pass
+
+    # ── SPENDING CATEGORIES AGGREGATION ────────────
+    # Aggregate both summarized Plaid categories AND recent calendar events
+    raw_category_totals: dict = {}
+    
+    # Plaid transactions
+    for s in spending:
+      cat = s['category']
+      raw_category_totals[cat] = raw_category_totals.get(cat, 0.0) + float(s['total'])
+
+    # Aggregate both summarized Plaid categories AND recent/upcoming calendar events
+    # We use a 60-day window: past 30 days to next 30 days to capture planned/recent spending
+    window_start = (now - timedelta(days=30)).date()
+    window_end = (now + timedelta(days=30)).date()
+    for e in events:
+      try:
+        # Handle Snowflake date strings (YYYY-MM-DD) or ISO strings
+        e_date_str = e['date'].split('T')[0] if 'T' in str(e['date']) else str(e['date'])
+        e_dt = datetime.fromisoformat(e_date_str).date()
+        if window_start <= e_dt <= window_end:
+          label = e['label']
+          raw_category_totals[label] = raw_category_totals.get(label, 0.0) + float(e.get('amount') or 0.0)
+      except: continue
+
+    buckets: dict = {}
+    for cat, total in raw_category_totals.items():
+      # Important: bucket name must exactly match _CATEGORY_COLORS keys
+      b_name = cat_map.get(cat, "Other")
+      if b_name not in _CATEGORY_COLORS: b_name = "Other"
+      buckets[b_name] = buckets.get(b_name, 0) + total
+
+    total_sum = sum(buckets.values()) or 1
+    
+    # Generate detailed category list
+    categories = sorted(
+      [
+        {
+          "color": _CATEGORY_COLORS.get(cat_map.get(cat, "Other"), "bg-slate-400"),
+          "label": cat,
+          "pct": round((total / total_sum) * 100, 1),
+          "amount": round(total, 2),
+          "bucket": cat_map.get(cat, "Other")
+        }
+        for cat, total in raw_category_totals.items() if total > 0
+      ],
+      key=lambda x: x['amount'],
+      reverse=True,
+    )
+
+    # Bucketed data for the donut chart
+    bucket_data = sorted(
+      [
+        {
+          "color": _CATEGORY_COLORS.get(label, "bg-slate-200"),
+          "label": label,
+          "amount": round(val, 2),
+          "pct": round((val / total_sum) * 100, 1),
+        }
+        for label, val in buckets.items() if val > 0
+      ],
+      key=lambda x: x['amount'],
+      reverse=True,
+    )
 
     # ── DEBT PROGRESS ──────────────────────────────
     total_debt = sum(d['balance'] for d in debts) if debts else 0
-
-    # Use planned monthly contribution (from setup) rather than raw transaction sum
     paid_this_month = planned_monthly_debt_contribution
 
     target_date_str = ""
     if debts and planned_monthly_debt_contribution > 0:
-      # Rough payoff estimate in months using planned monthly contribution
       months = int(total_debt / planned_monthly_debt_contribution)
-      if months < 1:
-        months = 1
+      if months < 1: months = 1
       target_date_str = (now + timedelta(days=months * 30)).strftime("%B %Y")
 
-    # ── STREAK — O(N) pre-aggregation ─────────────
-    # Build week-bucket sums once, then scan
+    # ── STREAK & ACHIEVEMENT ──────────────────────
     week_sums = [0.0] * 13
     for t in raw_txns:
-      if t.get('is_income', False):
-        continue
-      if cat_map.get(t['category'], "Other") == "Debt Payments":
-        continue
+      if t.get('is_income') or cat_map.get(t['category']) == "Debt Payments": continue
       delta = (today_date - datetime.fromisoformat(t['date']).date()).days
       week_idx = delta // 7
-      if 0 <= week_idx <= 12:
-        week_sums[week_idx] += t['amount']
+      if 0 <= week_idx <= 12: week_sums[week_idx] += t['amount']
 
     streak = 0
     for w in week_sums[:12]:
-      if w < weekly_budget:
-        streak += 1
-      else:
-        break
+      if w < weekly_budget: streak += 1
+      else: break
 
     achievement = {
       "label": "Underbudget Streak",
@@ -546,43 +604,32 @@ async def get_dashboard(user: dict = Depends(get_current_user)):
     }
 
     # ── UPCOMING EVENTS ────────────────────────────
-    upcoming = [
-      {
-        "time": (lambda dt: dt.strftime("%a, %b %d, %H:%M") if dt.hour > 0 else dt.strftime("%a, %b %d"))(
-          datetime.fromisoformat(e['date'])
-        ),
-        "cost": e['amount'],
-        "name": e['label'],
-        "location": "Remote",
-        "category": e.get('type', "Other"),
-      }
-      for e in events
-      if datetime.fromisoformat(e['date']) >= now
-    ][:3]
+    upcoming = []
+    for e in events:
+      e_dt = datetime.fromisoformat(e['date'])
+      if e_dt >= now:
+        time_str = e_dt.strftime("%a, %b %d, %H:%M") if e_dt.hour > 0 else e_dt.strftime("%a, %b %d")
+        upcoming.append({
+          "time": time_str,
+          "cost": e['amount'],
+          "name": e['label'],
+          "location": "Remote",
+          "category": e.get('type', "Other"),
+        })
+    upcoming = upcoming[:3]
 
-    # ── WEEKLY SPENDING — reuse week_sums ──────────
+    # ── WEEKLY SPENDING ───────────────────────────
     weeks = [
-      {
-        "week": f"W{5 - i}",
-        "spent": round(week_sums[i], 2),
-        "active": i == 0,
-      }
+      {"week": f"W{5 - i}", "spent": round(week_sums[i], 2), "active": i == 0}
       for i in range(4, -1, -1)
     ]
 
-    # ── DAILY DISTRIBUTION — O(N) ──────────────────
-    daily_buckets = {}
-    for i in range(7):
-      daily_buckets[today_date - timedelta(days=i)] = 0.0
-
+    # ── DAILY DISTRIBUTION ────────────────────────
+    daily_buckets = {today_date - timedelta(days=i): 0.0 for i in range(7)}
     for t in raw_txns:
-      if t.get('is_income', False):
-        continue
-      if cat_map.get(t['category'], "Other") == "Debt Payments":
-        continue
+      if t.get('is_income') or cat_map.get(t['category']) == "Debt Payments": continue
       t_date = datetime.fromisoformat(t['date']).date()
-      if t_date in daily_buckets:
-        daily_buckets[t_date] += t['amount']
+      if t_date in daily_buckets: daily_buckets[t_date] += t['amount']
 
     _days_map = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
     daily = [
@@ -593,26 +640,6 @@ async def get_dashboard(user: dict = Depends(get_current_user)):
       }
       for i in range(6, -1, -1)
     ]
-
-    # ── SPENDING CATEGORIES ────────────────────────
-    buckets: dict = {}
-    for s in spending:
-      b_name = cat_map.get(s['category'], "Other")
-      buckets[b_name] = buckets.get(b_name, 0) + s['total']
-
-    total_sum = sum(buckets.values()) or 1
-    categories = sorted(
-      [
-        {
-          "color": _CATEGORY_COLORS.get(label, "bg-slate-200"),
-          "label": label,
-          "pct": int(val / total_sum * 100),
-        }
-        for label, val in buckets.items() if val > 0
-      ],
-      key=lambda x: x['pct'],
-      reverse=True,
-    )
 
     # ── AI MILESTONE ───────────────────────────────
     milestone = get_cached_milestone(user_id)
@@ -643,6 +670,7 @@ async def get_dashboard(user: dict = Depends(get_current_user)):
       "spendingCategories": {
         "total": round(total_sum, 2),
         "categories": categories,
+        "bucket_data": bucket_data,
         "periodLimit": period_budget,
       },
       "milestone": milestone,

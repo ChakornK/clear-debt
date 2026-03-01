@@ -46,7 +46,8 @@ interface DashboardData {
   dailyDistribution: Array<{ day: string; spent: number; active: boolean }>;
   spendingCategories: {
     total: number;
-    categories: Array<{ color: string; label: string; pct: number }>;
+    categories: Array<{ color: string; label: string; pct: number; amount: number; bucket?: string }>;
+    bucket_data: Array<{ color: string; label: string; pct: number; amount: number }>;
     periodLimit: number;
   };
   milestone: {
@@ -250,52 +251,81 @@ export default function Dashboard() {
             <div className="rounded-xl border border-slate-100 bg-white p-5 shadow-sm">
               <h3 className="mb-4 flex items-center gap-2 text-base font-bold">
                 <TbCoin className="h-5 w-5" />
-                Spending Categories
+                Spending Categories (Last 30 Days)
               </h3>
               <div className="relative flex items-center justify-center py-4">
                 {(() => {
                   const size = 128;
-                  const strokeWidth = 12;
+                  const strokeWidth = 14;
                   const radius = (size - strokeWidth) / 2;
                   const circumference = 2 * Math.PI * radius;
-                  const progress = Math.min(spendingCategories.total / spendingCategories.periodLimit, 1);
-                  const dashOffset = circumference * (1 - progress);
+
+                  let cumulativePct = 0;
+                  // Map bucket colors to specific tailwind/hex colors for SVG
+                  const COLOR_MAP: Record<string, string> = {
+                    "bg-emerald-400": "#34d399",
+                    "bg-orange-400": "#fb923c",
+                    "bg-blue-400": "#60a5fa",
+                    "bg-rose-400": "#fb7185",
+                    "bg-purple-400": "#c084fc",
+                    "bg-amber-400": "#fbbf24",
+                    "bg-red-400": "#f87171",
+                    "bg-slate-400": "#94a3b8",
+                  };
+
                   return (
                     <div className="relative flex items-center justify-center" style={{ width: size, height: size }}>
                       <svg width={size} height={size} style={{ transform: "rotate(-90deg)" }}>
                         <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke="#f1f5f9" strokeWidth={strokeWidth} />
-                        <circle
-                          cx={size / 2}
-                          cy={size / 2}
-                          r={radius}
-                          fill="none"
-                          stroke={progress >= 1 ? "#f87171" : "#4ade80"}
-                          strokeWidth={strokeWidth}
-                          strokeDasharray={circumference}
-                          strokeDashoffset={dashOffset}
-                          strokeLinecap="round"
-                        />
+                        {spendingCategories.bucket_data?.map((bucket, i) => {
+                          const dashArray = circumference;
+                          const dashOffset = circumference * (1 - bucket.pct / 100);
+                          const rotation = (cumulativePct / 100) * 360;
+                          cumulativePct += bucket.pct;
+
+                          return (
+                            <circle
+                              key={i}
+                              cx={size / 2}
+                              cy={size / 2}
+                              r={radius}
+                              fill="none"
+                              stroke={COLOR_MAP[bucket.color] || "#94a3b8"}
+                              strokeWidth={strokeWidth}
+                              strokeDasharray={dashArray}
+                              strokeDashoffset={dashOffset}
+                              strokeLinecap="butt"
+                              style={{ transform: `rotate(${rotation}deg)`, transformOrigin: "center" }}
+                            />
+                          );
+                        })}
                       </svg>
                       <div className="absolute text-center">
-                        <p className="text-xs font-bold text-slate-400">TOTAL</p>
-                        <p className="text-sm font-black">${spendingCategories.total}</p>
+                        <p className="text-[10px] font-bold text-slate-400">TOTAL</p>
+                        <p className="text-sm font-black">${spendingCategories.total.toLocaleString()}</p>
                       </div>
                     </div>
                   );
                 })()}
               </div>
-              <div className="mt-4 space-y-2">
-                {spendingCategories.categories.map((cat, i) => {
-                  const dollarAmount = Math.round((cat.pct / 100) * spendingCategories.total);
+
+              {/* Scrollable list of ALL categories */}
+              <div className="custom-scrollbar mt-4 max-h-[240px] space-y-3 overflow-y-auto pr-2">
+                {spendingCategories.categories?.map((cat, i) => {
                   return (
-                    <div key={i} className="flex items-center justify-between text-xs">
-                      <div className="flex items-center gap-2">
-                        <span className={`h-2 w-2 rounded-full ${cat.color} inline-block`}></span>
-                        <span className="font-medium">{cat.label}</span>
+                    <div key={i} className="flex flex-col gap-1 border-b border-slate-50 pb-2 last:border-0">
+                      <div className="flex items-center justify-between text-xs">
+                        <div className="flex items-center gap-2">
+                          <span className={`h-2 w-2 rounded-full ${cat.color} inline-block`}></span>
+                          <span className="font-bold text-slate-800">{cat.label}</span>
+                        </div>
+                        <div className="text-right">
+                          <span className="font-black text-slate-900">${cat.amount.toLocaleString()}</span>
+                        </div>
                       </div>
-                      <div className="text-right">
-                        <span className="font-bold">${dollarAmount}</span>
-                        <span className="ml-1 text-slate-400">({cat.pct}%)</span>
+                      <div className="flex items-center justify-between pl-4 text-[10px]">
+                        <span className="font-medium uppercase text-slate-400">{cat.bucket}</span>
+                        <span className="font-bold text-slate-400">{cat.pct}%</span>
                       </div>
                     </div>
                   );
