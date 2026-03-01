@@ -1,8 +1,6 @@
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 
-from tomlkit import datetime
-
 class User(BaseModel):
     id: str
     email: str
@@ -16,7 +14,7 @@ class Debt(BaseModel):
     balance: float
     apr: float
     minimum: float
-    due: int  
+    due: int
     source: Optional[str] = 'manual'
 
 class CalendarEvent(BaseModel):
