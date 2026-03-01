@@ -15,7 +15,7 @@ export default async function RootLayout({
 }>) {
   const cookieStore = await cookies();
   const hasToken = cookieStore.has("auth_token");
-  const hasCompletedOnboarding = cookieStore.has("onboarding_complete");
+  const hasCompletedOnboarding = cookieStore.get("onboarding_complete")?.value === "1";
 
   return (
     <html lang="en">
@@ -24,7 +24,7 @@ export default async function RootLayout({
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Onest:wght@100..900&display=swap" />
       </head>
-      <body className="flex h-dvh bg-white selection:bg-green-100 selection:text-green-900">
+      <body className="h-dvh flex bg-white selection:bg-green-100 selection:text-green-900">
         <GlobalProvider>
           {hasToken && hasCompletedOnboarding && <Navbar />}
           <div className="grow overflow-auto">{children}</div>
