@@ -4,7 +4,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from models import (ExchangeTokenRequest, SaveDebtsRequest, GeneratePlanRequest, 
                     ChatRequest, CalendarEvent, DashboardResponse, PredictEventRequest)
 from plaid_client import create_link_token, exchange_public_token, get_accounts, get_transactions, get_liabilities
-from snowflake_client import (save_access_token, get_access_token, save_debts,
+from snowflake_client import (get_cached_category_mappings, get_transactions_raw, save_access_token, get_access_token, save_debts,
     get_debts, save_transactions, get_spending_summary,
     save_calendar_events, get_calendar_events, save_plan, get_connection,
     get_cached_milestone, save_milestone, save_category_mappings,
@@ -62,11 +62,40 @@ def sync_plaid(user: dict = Depends(get_current_user)):
         if not access_token:
             raise HTTPException(status_code=404, detail="No linked account found")
         accounts = get_accounts(access_token)
-        transactions = get_transactions(access_token)
+        transactions, _ = get_transactions(access_token)
         liabilities = get_liabilities(access_token)
         save_transactions(user_id, transactions)
         save_debts(user_id, liabilities)
         return {"accounts": accounts, "debts": liabilities, "transactions_synced": len(transactions)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/plaid/sync-history")
+async def sync_history(user: dict = Depends(get_current_user)):
+    try:
+        user_id = user['sub']
+        access_token = get_access_token(user_id)
+        if not access_token:
+            raise HTTPException(status_code=404, detail="No linked account found")
+        
+        days = 60 
+        batch_size = 100
+        offset = 0
+        total_synced = 0
+        
+        while True:
+            transactions, total_count = get_transactions(access_token, days=days, offset=offset, count=batch_size)
+            if not transactions:
+                break
+            
+            save_transactions(user_id, transactions)
+            total_synced += len(transactions)
+            offset += len(transactions)
+            
+            if offset >= total_count:
+                break
+                
+        return {"success": True, "total_synced": total_synced}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -102,8 +131,57 @@ class CalendarResponse(BaseModel):
 def get_events(user: dict = Depends(get_current_user)):
     try:
         user_id = user['sub']
-        return {"events": get_calendar_events(user_id)}
+        # 1. Fetch manual calendar events
+        manual_events = get_calendar_events(user_id)
+        
+        # 2. Fetch real transactions
+        txns = get_transactions_raw(user_id)
+        
+        # 3. Fetch category mappings for transactions
+        cat_map = get_cached_category_mappings()
+        
+        # 4. Process transactions into CalendarEvent format
+        txn_events = []
+        to_classify = []
+        
+        for t in txns:
+            cat = t['category']
+            if cat not in cat_map:
+                to_classify.append(cat)
+            
+            txn_events.append({
+                "date": t['date'],
+                "type": cat_map.get(cat, "Other"),
+                "label": t['description'],
+                "amount": float(t['amount'])
+            })
+            
+        # 5. Classify missing categories if any (async/background ideally, but inline for now)
+        if to_classify:
+            new_mappings = classify_transactions(list(set(to_classify)))
+            save_category_mappings(new_mappings)
+            cat_map.update(new_mappings)
+            # Update the types in txn_events
+            for te in txn_events:
+                # We need to find the original raw category if possible, but txn_events already has the label.
+                # Let's re-match by finding the txn again or just updating based on a map.
+                # A better way is to do this during the first loop.
+                pass
+
+        # Re-calc types for txn_events after potential classification
+        final_txn_events = []
+        for t in txns:
+            final_txn_events.append({
+                "date": t['date'],
+                "type": cat_map.get(t['category'], "Other"),
+                "label": t['description'],
+                "amount": float(t['amount']),
+                "is_income": t.get('is_income', False)
+            })
+
+        return {"events": manual_events + final_txn_events}
     except Exception as e:
+        print(f"Error in get_events: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/calendar")
@@ -312,7 +390,7 @@ async def get_dashboard(user: dict = Depends(get_current_user)):
             w_end = now - timedelta(weeks=i)
             w_spent = sum(t['amount'] for t in raw_txns 
                          if w_start <= datetime.fromisoformat(t['date']) < w_end
-                         and t['amount'] > 0)
+                         and not t.get('is_income', False))
             if w_spent < budget_limit:
                 streak += 1
             else:
@@ -352,7 +430,7 @@ async def get_dashboard(user: dict = Depends(get_current_user)):
             w_end = now - timedelta(weeks=i)
             w_spent = sum(t['amount'] for t in raw_txns 
                          if w_start <= datetime.fromisoformat(t['date']) < w_end
-                         and t['amount'] > 0)
+                         and not t.get('is_income', False))
             weeks.append({
                 "week": f"W{5-i}",
                 "spent": round(w_spent, 2),
@@ -367,7 +445,7 @@ async def get_dashboard(user: dict = Depends(get_current_user)):
             target_day = now - timedelta(days=i)
             d_spent = sum(t['amount'] for t in raw_txns 
                          if datetime.fromisoformat(t['date']).date() == target_day.date()
-                         and t['amount'] > 0)
+                         and not t.get('is_income', False))
             daily.append({
                 "day": days_map[target_day.weekday()],
                 "spent": round(d_spent, 2),

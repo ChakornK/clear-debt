@@ -59,7 +59,7 @@ def get_accounts(access_token: str):
         })
     return accounts
 
-def get_transactions(access_token: str, days: int = 90):
+def get_transactions(access_token: str, days: int = 90, offset: int = 0, count: int = 100):
     client = get_plaid_client()
     end = date.today()
     start = end - timedelta(days=days)
@@ -67,18 +67,24 @@ def get_transactions(access_token: str, days: int = 90):
         access_token=access_token,
         start_date=start,
         end_date=end,
-        options=TransactionsGetRequestOptions(count=250)
+        options=TransactionsGetRequestOptions(
+            count=count,
+            offset=offset
+        )
     )
     response = client.transactions_get(request)
     transactions = []
     for t in response['transactions']:
+        amt = t['amount']
         transactions.append({
+            'id': t['transaction_id'],
             'date': str(t['date']),
             'category': t['category'][0] if t['category'] else 'Other',
-            'amount': abs(t['amount']),
+            'amount': abs(amt),
+            'is_income': amt < 0,
             'description': t['name']
         })
-    return transactions
+    return transactions, response['total_transactions']
 
 def get_liabilities(access_token: str):
     client = get_plaid_client()

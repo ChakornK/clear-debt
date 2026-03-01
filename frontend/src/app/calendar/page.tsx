@@ -29,6 +29,7 @@ interface CalendarEvent {
   type: string;
   label: string;
   amount: number;
+  is_income?: boolean;
 }
 
 interface TypeConfigEntry {
@@ -291,13 +292,21 @@ function EventPopover({ anchor, events, year, month, day, onClose, onAddExpense 
         {events.map((ev, i) => {
           const cfg = getTypeConfig(ev.type);
           return (
-            <div key={i} className="flex items-start gap-3 rounded-xl border border-slate-100 bg-slate-50 p-3">
-              <cfg.Icon className={`mt-0.5 h-5 w-5 shrink-0 ${cfg.iconClass}`} />
+            <div
+              key={i}
+              className={`flex items-start gap-3 rounded-xl border p-3 ${ev.is_income ? "border-green-200 bg-green-50" : "border-slate-100 bg-slate-50"}`}
+            >
+              <cfg.Icon className={`mt-0.5 h-5 w-5 shrink-0 ${ev.is_income ? "text-green-500" : cfg.iconClass}`} />
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-semibold">{ev.label}</p>
+                <div className="flex items-center justify-between gap-2">
+                  <p className="truncate text-sm font-semibold">{ev.label}</p>
+                  {ev.is_income && <span className="shrink-0 rounded bg-green-500 px-1 py-0.5 text-[8px] font-bold uppercase text-white">Income</span>}
+                </div>
                 <p className="mt-0.5 flex items-center gap-1.5 text-xs text-slate-500">
                   <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${cfg.badge}`}>{ev.type}</span>
-                  <span>${ev.amount.toFixed(2)}</span>
+                  <span className={ev.is_income ? "font-bold text-green-600" : ""}>
+                    {ev.is_income ? "+" : ""}${ev.amount.toFixed(2)}
+                  </span>
                 </p>
               </div>
             </div>
@@ -419,7 +428,8 @@ export default function Calendar() {
 
   const monthPrefix = `${year}-${String(month).padStart(2, "0")}`;
   const monthEvents = events.filter((ev) => ev.date.startsWith(monthPrefix));
-  const totalEstimated = monthEvents.reduce((s, ev) => s + ev.amount, 0);
+  const totalSpending = monthEvents.filter((e) => !e.is_income).reduce((s, ev) => s + ev.amount, 0);
+  const totalIncome = monthEvents.filter((e) => e.is_income).reduce((s, ev) => s + ev.amount, 0);
   const uniqueDays = new Set(monthEvents.map((e) => e.date.split("T")[0])).size;
 
   const selectedEvents: CalendarEvent[] = popover ? (eventMap[toDateStr(year, month, popover.day)] ?? []) : [];
@@ -481,7 +491,7 @@ export default function Calendar() {
                   {dayEvents.length > 0 && (
                     <div className="mt-1 flex flex-wrap gap-1">
                       {dayEvents.slice(0, 4).map((ev, i) => (
-                        <div key={i} className={`size-1.5 rounded-full ${getTypeConfig(ev.type).dot}`} />
+                        <div key={i} className={`size-1.5 rounded-full ${ev.is_income ? "bg-green-400" : getTypeConfig(ev.type).dot}`} />
                       ))}
                     </div>
                   )}
@@ -499,15 +509,24 @@ export default function Calendar() {
 
         {/* Summary Bar */}
         <div className="mt-8 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          <div className="rounded-xl border border-green-200 bg-green-50 p-6 shadow-sm">
+          <div className="rounded-xl border border-slate-100 bg-white p-6 shadow-sm">
             <div className="mb-2 flex items-center gap-3">
               <TbReportMoney className="h-5 w-5 text-green-600" />
-              <h4 className="font-bold">Total Estimated</h4>
+              <h4 className="font-bold">Monthly Income</h4>
             </div>
-            <p className="text-3xl font-black">${totalEstimated.toFixed(2)}</p>
+            <p className="text-3xl font-black text-green-600">+${totalIncome.toFixed(2)}</p>
             <p className="mt-1 text-sm text-slate-500">
               For {MONTH_NAMES[month - 1]} {year}
             </p>
+          </div>
+
+          <div className="rounded-xl border border-rose-100 bg-rose-50 p-6 shadow-sm">
+            <div className="mb-2 flex items-center gap-3">
+              <TbCreditCard className="h-5 w-5 text-rose-600" />
+              <h4 className="font-bold">Monthly Spending</h4>
+            </div>
+            <p className="text-3xl font-black text-rose-600">-${totalSpending.toFixed(2)}</p>
+            <p className="mt-1 text-sm text-slate-500">Estimated & Actual</p>
           </div>
 
           <div className="rounded-xl border border-slate-100 bg-white p-6 shadow-sm">

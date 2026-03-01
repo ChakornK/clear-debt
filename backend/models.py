@@ -22,6 +22,7 @@ class CalendarEvent(BaseModel):
     type: str
     label: str
     amount: float
+    is_income: Optional[bool] = False
 
 class ChatMessage(BaseModel):
     role: str

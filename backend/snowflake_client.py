@@ -63,24 +63,44 @@ def get_transactions_raw(user_id):
     conn = get_connection()
     cur = conn.cursor()
     cur.execute("""
-        SELECT TX_DATE, CATEGORY, AMOUNT, DESCRIPTION 
+        SELECT TX_DATE, CATEGORY, AMOUNT, DESCRIPTION, TRANSACTION_ID, IS_INCOME 
         FROM TRANSACTIONS
         WHERE USER_ID = %s
         ORDER BY TX_DATE DESC
     """, (user_id,))
     rows = cur.fetchall()
     cur.close(); conn.close()
-    return [{'date': str(r[0]), 'category': r[1], 'amount': r[2], 'description': r[3]} for r in rows]
+    return [{'date': str(r[0]), 'category': r[1], 'amount': r[2], 'description': r[3], 'id': r[4], 'is_income': r[5]} for r in rows]
 
 def save_transactions(user_id, transactions):
     conn = get_connection()
     cur = conn.cursor()
-    cur.execute("DELETE FROM TRANSACTIONS WHERE USER_ID = %s", (user_id,))
+    # Try to add TRANSACTION_ID and IS_INCOME columns if they don't exist
+    try:
+        cur.execute("ALTER TABLE TRANSACTIONS ADD COLUMN TRANSACTION_ID STRING")
+    except:
+        pass
+    try:
+        cur.execute("ALTER TABLE TRANSACTIONS ADD COLUMN IS_INCOME BOOLEAN DEFAULT FALSE")
+    except:
+        pass
+
     for t in transactions:
+        is_inc = t.get('is_income', False)
         cur.execute("""
-            INSERT INTO TRANSACTIONS (USER_ID, TX_DATE, CATEGORY, AMOUNT, DESCRIPTION)
-            VALUES (%s, %s, %s, %s, %s)
-        """, (user_id, t['date'], t['category'], t['amount'], t['description']))
+            MERGE INTO TRANSACTIONS AS target
+            USING (SELECT %s AS USER_ID, %s AS TX_DATE, %s AS CATEGORY, 
+                          %s AS AMOUNT, %s AS DESCRIPTION, %s AS TRANSACTION_ID, %s AS IS_INCOME) AS source
+            ON target.USER_ID = source.USER_ID 
+               AND (target.TRANSACTION_ID = source.TRANSACTION_ID OR 
+                   (target.TX_DATE = source.TX_DATE AND target.AMOUNT = source.AMOUNT AND target.DESCRIPTION = source.DESCRIPTION))
+            WHEN MATCHED THEN UPDATE SET 
+                CATEGORY = source.CATEGORY, AMOUNT = source.AMOUNT, DESCRIPTION = source.DESCRIPTION, IS_INCOME = source.IS_INCOME
+            WHEN NOT MATCHED THEN INSERT 
+                (USER_ID, TX_DATE, CATEGORY, AMOUNT, DESCRIPTION, TRANSACTION_ID, IS_INCOME)
+            VALUES (source.USER_ID, source.TX_DATE, source.CATEGORY, 
+                    source.AMOUNT, source.DESCRIPTION, source.TRANSACTION_ID, source.IS_INCOME)
+        """, (user_id, t['date'], t['category'], t['amount'], t['description'], t.get('id'), is_inc))
     conn.commit()
     cur.close(); conn.close()
 
@@ -93,6 +113,7 @@ def get_spending_summary(user_id):
         FROM TRANSACTIONS
         WHERE USER_ID = %s
         AND TX_DATE >= DATEADD(day, -90, CURRENT_DATE)
+        AND IS_INCOME = FALSE
         GROUP BY CATEGORY
         ORDER BY TOTAL DESC
     """, (user_id,))
@@ -170,8 +191,8 @@ def get_dashboard_data(user_id):
         events = [{'date': str(r[0]), 'type': r[1], 'label': r[2], 'amount': r[3]} for r in cur.fetchall()]
 
         # 4. Raw Transactions
-        cur.execute("SELECT TX_DATE, CATEGORY, AMOUNT, DESCRIPTION FROM TRANSACTIONS WHERE USER_ID = %s ORDER BY TX_DATE DESC", (user_id,))
-        raw_txns = [{'date': str(r[0]), 'category': r[1], 'amount': r[2], 'description': r[3]} for r in cur.fetchall()]
+        cur.execute("SELECT TX_DATE, CATEGORY, AMOUNT, DESCRIPTION, TRANSACTION_ID, IS_INCOME FROM TRANSACTIONS WHERE USER_ID = %s ORDER BY TX_DATE DESC", (user_id,))
+        raw_txns = [{'date': str(r[0]), 'category': r[1], 'amount': r[2], 'description': r[3], 'id': r[4], 'is_income': r[5]} for r in cur.fetchall()]
 
         # 5. Category Mappings
         cat_map = {}
