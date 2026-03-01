@@ -116,7 +116,7 @@ export const DebtInputField = ({ id, debt, onRemoveClick, onFieldChange, showErr
               value={debt.minimum || ""}
               placeholder="25.00"
               onChange={(e) => onFieldChange(id, "minimum", parseFloat(e.target.value) || 0)}
-              className={`${inputClass}pl-7 ${showErrors && (debt.minimum < 0 || debt.minimum > debt.balance) ? "border-red-400 bg-red-50 focus:ring-red-100" : ""}`}
+              className={`${inputClass} pl-7 ${showErrors && (debt.minimum < 0 || debt.minimum > debt.balance) ? "border-red-400 bg-red-50 focus:ring-red-100" : ""}`}
             />
           </div>
         </div>
