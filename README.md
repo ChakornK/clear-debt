@@ -8,7 +8,8 @@ Built using **Google Gemini AI**, **Snowflake**, and **Plaid**.
 
 ## What It Does
 
-Most debt repayment tools ignore the reality of modern life — that a "Study Group at Coffee Shop" event on your calendar means $25 in spending, or that three social events in one weekend requires proactive budget adjustments. ClearDebt connects your calendar, your bank accounts, and your debts to give you a complete financial picture.
+Most debt repayment tools ignore the reality of modern life — that a "Study Group at Coffee Shop" event on your calendar means $25 in spending, or that three social events in one weekend requires proactive budget adjustments. ClearDebt helps users eliminate debt faster by combining real banking data, calendar intelligence, and AI-powered repayment strategies. Instead of generic advice, every recommendation is grounded in the user's actual balances, spending behavior, and upcoming financial events.
+
 
 **Key innovation:** When you add a calendar event, ClearDebt uses Gemini AI to instantly predict how much you'll spend — before the money leaves your account.
 
