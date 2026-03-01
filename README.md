@@ -15,8 +15,10 @@ Most debt repayment tools ignore the reality of modern life — that a "Study Gr
 ---
 
 ## Features
-### 1. Connected Accounts Dashboard
-Displays all debt accounts (credit cards, loans, lines of credit) as cards showing balance, APR, minimum payment, and due date. Includes a donut chart showing total debt composition. Supports both Plaid-connected bank accounts and manually added debts.
+### 1. Multi-Source Debt Aggregation
+Connects to real bank accounts via Plaid (credit cards, lines of credit, student loans, auto loans)
+Manual debt entry for accounts outside Plaid
+All data unified in Snowflake as a single financial profile
 
 ### 2. Spending Behavior Analyzer
 Reads 90 days of transaction history and surfaces patterns — average monthly spend by category, recurring subscriptions, and seasonal spikes. This output feeds directly into the AI's reasoning when generating your repayment plan.
