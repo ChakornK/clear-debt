@@ -1,5 +1,7 @@
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
+
+from tomlkit import datetime
 
 class User(BaseModel):
     id: str
@@ -14,7 +16,7 @@ class Debt(BaseModel):
     balance: float
     apr: float
     minimum: float
-    due: int
+    due: int  
     source: Optional[str] = 'manual'
 
 class CalendarEvent(BaseModel):
@@ -40,6 +42,15 @@ class GeneratePlanRequest(BaseModel):
 class ChatRequest(BaseModel):
     message: str
     history: Optional[List[ChatMessage]] = []
+
+class DashboardResponse(BaseModel):
+    debtProgress: Dict[str, Any]
+    achievement: Dict[str, Any]
+    upcomingEvents: List[Dict[str, Any]]
+    weeklySpending: Dict[str, Any]
+    dailyDistribution: List[Dict[str, Any]]
+    spendingCategories: Dict[str, Any]
+    milestone: Dict[str, Any]
 
 class PredictEventRequest(BaseModel):
     label: str
