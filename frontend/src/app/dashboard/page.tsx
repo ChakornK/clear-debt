@@ -52,13 +52,6 @@ interface DashboardData {
     bucket_data: Array<{ color: string; label: string; pct: number; amount: number }>;
     periodLimit: number;
   };
-  milestone: {
-    tag: string;
-    title: string;
-    description: string;
-    primaryCTA: string;
-    secondaryCTA: string;
-  };
 }
 
 interface TypeConfigEntry {
@@ -127,7 +120,7 @@ export default function Dashboard() {
 
   if (!data) return null;
 
-  const { debtProgress, achievement, upcomingEvents, weeklySpending, dailyDistribution, spendingCategories, milestone } = data;
+  const { debtProgress, achievement, upcomingEvents, weeklySpending, dailyDistribution, spendingCategories} = data;
 
   const debtPct = ((debtProgress.paid / debtProgress.total) * 100).toFixed(1);
   const dailyBudget = weeklySpending.budgetLimit / 7;

@@ -53,10 +53,7 @@ class DashboardResponse(BaseModel):
     weeklySpending: Dict[str, Any]
     dailyDistribution: List[Dict[str, Any]]
     spendingCategories: Dict[str, Any]
-    milestone: Dict[str, Any]
 
 class PredictEventRequest(BaseModel):
     label: str
     date: str
-
-    
