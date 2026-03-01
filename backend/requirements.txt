@@ -1,0 +1,8 @@
+fastapi
+uvicorn
+plaid-python
+pydantic
+python-dotenv
+snowflake
+snowflake-ml-python
+snowflake-snowpark-python
