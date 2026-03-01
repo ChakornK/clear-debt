@@ -31,8 +31,8 @@ const routes = [
 const navLink = cva("flex items-center gap-2 rounded-md p-2", {
   variants: {
     intent: {
-      selected: "bg-green-400/20 text-green-900",
-      unselected: "hover:bg-neutral-200",
+      selected: "bg-green-600/10 text-green-900",
+      unselected: "hover:bg-neutral-200/50",
     },
   },
 });
