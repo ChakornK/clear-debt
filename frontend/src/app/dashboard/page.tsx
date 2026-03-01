@@ -120,7 +120,7 @@ export default function Dashboard() {
 
   if (!data) return null;
 
-  const { debtProgress, achievement, upcomingEvents, weeklySpending, dailyDistribution, spendingCategories} = data;
+  const { debtProgress, achievement, upcomingEvents, weeklySpending, dailyDistribution, spendingCategories } = data;
 
   const debtPct = ((debtProgress.paid / debtProgress.total) * 100).toFixed(1);
   const dailyBudget = weeklySpending.budgetLimit / 7;
@@ -350,18 +350,18 @@ export default function Dashboard() {
               <div className="relative flex h-64 w-full items-end justify-between gap-2 px-2">
                 {/* Grid lines */}
                 <div className="pointer-events-none absolute inset-0 mb-6 flex flex-col justify-between">
-                  <div className="w-full border-t border-slate-700/50"></div>
-                  <div className="w-full border-t border-slate-700/50"></div>
-                  <div className="w-full border-t border-slate-700/50"></div>
                   {/* Budget limit line sits at 100% of chart height */}
-                  <div className="relative z-10 w-full border-t border-dashed border-red-400/50">
+                  <div className="w-full border-t border-slate-700/50"></div>
+                  <div className="w-full border-t border-slate-700/50"></div>
+                  <div className="relative z-10 w-full border-t border-dashed border-slate-200/50">
                     <span className="absolute -top-5 right-0 text-[10px] font-bold text-red-400">BUDGET LIMIT (${weeklySpending.budgetLimit.toFixed(0)})</span>
                   </div>
+                  <div className="w-full border-t border-slate-700/50"></div>
                   <div className="w-full border-t border-slate-700/50"></div>
                 </div>
 
                 {weeklySpending.weeks.map((bar, i) => {
-                  const heightPct = Math.min((bar.spent / weeklySpending.budgetLimit) * 100, 100);
+                  const heightPct = Math.min((bar.spent / weeklySpending.budgetLimit) * 50, 100);
                   const overBudget = bar.spent > weeklySpending.budgetLimit;
                   return (
                     <div key={i} className="group relative flex h-full w-full flex-col items-center justify-end">
