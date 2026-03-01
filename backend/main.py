@@ -102,7 +102,7 @@ class CalendarResponse(BaseModel):
 def get_events(user: dict = Depends(get_current_user)):
     try:
         user_id = user['sub']
-        return {"events": get_calendar_events(user_id, future_only=True)}
+        return {"events": get_calendar_events(user_id)}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -130,42 +130,75 @@ async def sync_google_calendar(request: Request, user: dict = Depends(get_curren
         access_token = user.get('access_token')
         if not access_token:
              raise HTTPException(status_code=401, detail="Google access token not found. Please log in again.")
-             
-        # 1. Fetch events
-        events = await get_google_calendar_events(access_token, days=30)
-        
-        if not events:
+             print("1")
+        # 1. Fetch events from Google
+        google_events = await get_google_calendar_events(access_token, days=30)
+        print("2")
+        if not google_events:
             return {"synced": 0, "events": []}
-
-        # 2. Predict spending for events (Batch)
-        try:
-            predictions = predict_events_batch(events)
-            # predictions is expected to be a list of objects in the same order
-            estimated_events = []
-            for i, e in enumerate(events):
-                # Use matching prediction if available, else fallback
-                pred = predictions[i] if i < len(predictions) else {}
-                estimated_events.append({
-                    "date": e['date'],
-                    "type": "Calendar Event",
-                    "label": e['label'],
-                    "amount": pred.get('predictedAmount', 0)
-                })
-        except Exception as ai_e:
-            print(f"Batch AI estimation failed: {ai_e}")
-            # Total fallback if the entire batch call fails
-            estimated_events = [{
-                "date": e['date'],
+        print("3")
+        # 2. Fetch existing events from Snowflake to check for cache
+        existing_events = get_calendar_events(user_id)
+        print("4")
+        # Create a lookup set for (label, date)
+        cache_lookup = {(e['label'], e['date']) for e in existing_events if e.get('amount', 0) > 0}
+        print("5")
+        # 3. Filter events that need prediction
+        to_predict = []
+        already_predicted = []
+        print("6")
+        for e in google_events:
+          e_date = e['date'].split('T')[0]
+          if (e['label'], e_date) in cache_lookup:
+            existing = next(
+              (ex for ex in existing_events 
+               if ex['label'] == e['label'] and ex['date'].split('T')[0] == e_date),
+              None
+            )
+            if existing:
+              already_predicted.append({
+                "date": e_date,
                 "type": "Calendar Event",
                 "label": e['label'],
-                "amount": 0
-            } for e in events]
+                "amount": existing['amount']
+              })
+          else:
+            to_predict.append(e)
+        print("7")
+        # 4. Predict spending for NEW events only
+        new_estimated = []
+        if to_predict:
+            print(to_predict)
+            try:
+                predictions = predict_events_batch(to_predict)
+                for i, e in enumerate(to_predict):
+                    pred = predictions[i] if i < len(predictions) else {}
+                    new_estimated.append({
+                        "date": e['date'],
+                        "type": "Calendar Event",
+                        "label": e['label'],
+                        "amount": pred.get('predictedAmount', 0)
+                    })
+            except Exception as ai_e:
+                print(f"Batch AI estimation failed: {ai_e}")
+                for e in to_predict:
+                    new_estimated.append({
+                        "date": e['date'],
+                        "type": "Calendar Event",
+                        "label": e['label'],
+                        "amount": 0
+                    })
         
-        # 3. Save to Snowflake
-        if estimated_events:
-            save_calendar_events(user_id, estimated_events)
+        # 5. Save ONLY new predictions to Snowflake (save_calendar_events uses MERGE)
+        if new_estimated:
+            save_calendar_events(user_id, new_estimated)
             
-        return {"synced": len(estimated_events), "events": estimated_events}
+        # 6. Return combined results for the UI
+        all_synced = already_predicted + new_estimated
+        # Sort by date for better UI presentation
+        all_synced.sort(key=lambda x: x['date'])
+        
+        return {"synced": len(new_estimated), "total": len(all_synced), "events": all_synced}
     except Exception as e:
         print(f"Sync error: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
