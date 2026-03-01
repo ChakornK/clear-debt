@@ -8,13 +8,14 @@ import { TbArrowBigRightLines } from "react-icons/tb";
 import AddButton from "@/components/AddButton";
 import api from "@/api/axios";
 import { MouseEvent } from 'react';
+import { DebtType } from "@/types/types";
 
 export default function Setup() {
 
 const dummyDebt = {
     id: "debt123",
     name: "credit card debt",
-    type: "credit card",
+    type: DebtType["Credit card"],
     balance: 5000,
     apr: 18.99,
     minimum: 25,
@@ -42,7 +43,7 @@ const dummyDebt = {
     const newDebt = {
     id: date.toISOString(),
     name: "",
-    type: "",
+    type: DebtType.Other,
     balance: 0,
     apr: 0,
     minimum: 0,
@@ -58,11 +59,15 @@ const dummyDebt = {
     setDebt(newDebt);
   }
 
-  const onDebtTitleUpdate = (event) => {
-    var id = event.target.getAttribute("id");
+  const onDebtElementChange = (event) => {
+    console.log(event.target);
+    var id = event.currentTarget.getAttribute("id");
+    var name = event.target.getAttribute("name");
+    var val = event.target.getAttribute("value");
+    console.log(val);
     setDebt(prevDebt =>
       prevDebt.map(d =>
-        d.id === id ? { ...d, name: event.target.value } : d
+        d.id === id ? { ...d, [name]: event.target.value } : d
       )
     );
   }
@@ -115,7 +120,7 @@ const dummyDebt = {
           <p className="text-slate-600 dark:text-slate-400 pb-4">List your outstanding balances to calculate your payoff strategy.</p>
           {/* debt input fields */}
           {debt.map((d) => (
-            <DebtInputField key={d.id} id={d.id} onRemoveClick={removeDebtElement} onTitleChange={onDebtTitleUpdate} />
+            <DebtInputField key={d.id} id={d.id} onRemoveClick={removeDebtElement} onChange={onDebtElementChange} />
           ))}
           {/* add button */}
           <AddButton children="Add another debt" onClick={addDebtElement} />
