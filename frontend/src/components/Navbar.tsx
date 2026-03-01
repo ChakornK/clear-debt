@@ -103,6 +103,16 @@ export const Navbar = () => {
         ${collapsed ? "w-[72px]" : "w-2xs"}
       `}
     >
+      {collapsed && (
+        <button
+          onClick={() => setCollapsed(false)}
+          className="mx-auto mb-6 flex h-7 w-7 items-center justify-center rounded-lg border border-neutral-200 bg-white text-slate-500 shadow-sm transition hover:text-slate-800"
+          title="Expand sidebar"
+        >
+          <TbChevronRight className="text-base" />
+        </button>
+      )}
+
       {/* Header: avatar + name */}
       <div className="mb-6 flex items-center gap-3">
         <div className="h-10 w-10 shrink-0 overflow-clip rounded-full bg-neutral-200">
@@ -125,16 +135,6 @@ export const Navbar = () => {
           </button>
         )}
       </div>
-
-      {collapsed && (
-        <button
-          onClick={() => setCollapsed(false)}
-          className="mx-auto mb-6 flex h-7 w-7 items-center justify-center rounded-lg border border-neutral-200 bg-white text-slate-500 shadow-sm transition hover:text-slate-800"
-          title="Expand sidebar"
-        >
-          <TbChevronRight className="text-base" />
-        </button>
-      )}
 
       {/* Nav links */}
       {routes.map((route) => {
