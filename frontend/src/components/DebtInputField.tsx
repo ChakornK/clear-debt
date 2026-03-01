@@ -65,8 +65,7 @@ export const DebtInputField = ({ id, debt, onRemoveClick, onFieldChange, showErr
                 </option>
               ))}
             </select>
-            <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-slate-400">
-            </div>
+            <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-slate-400"></div>
           </div>
         </div>
 
@@ -97,7 +96,7 @@ export const DebtInputField = ({ id, debt, onRemoveClick, onFieldChange, showErr
               value={debt.apr || ""}
               placeholder="15.99"
               onChange={(e) => onFieldChange(id, "apr", parseFloat(e.target.value) || 0)}
-              className={`${inputClass} pr-8 text-right ${showErrors && (debt.apr < 0 || debt.apr > 100) ? "border-red-400 bg-red-50 focus:ring-red-100" : ""}`}
+              className={`${inputClass} pr-8 ${showErrors && (debt.apr < 0 || debt.apr > 100) ? "border-red-400 bg-red-50 focus:ring-red-100" : ""}`}
             />
             <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm text-slate-400">%</span>
           </div>
@@ -132,8 +131,7 @@ export const DebtInputField = ({ id, debt, onRemoveClick, onFieldChange, showErr
                 </option>
               ))}
             </select>
-            <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-slate-400">
-            </div>
+            <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-slate-400"></div>
           </div>
         </div>
       </div>
