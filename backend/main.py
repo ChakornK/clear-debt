@@ -130,23 +130,23 @@ async def sync_google_calendar(request: Request, user: dict = Depends(get_curren
         access_token = user.get('access_token')
         if not access_token:
              raise HTTPException(status_code=401, detail="Google access token not found. Please log in again.")
-             print("1")
+
         # 1. Fetch events from Google
         google_events = await get_google_calendar_events(access_token, days=30)
-        print("2")
+        
         if not google_events:
             return {"synced": 0, "events": []}
-        print("3")
+        
         # 2. Fetch existing events from Snowflake to check for cache
         existing_events = get_calendar_events(user_id)
-        print("4")
+        
         # Create a lookup set for (label, date)
         cache_lookup = {(e['label'], e['date']) for e in existing_events if e.get('amount', 0) > 0}
-        print("5")
+        
         # 3. Filter events that need prediction
         to_predict = []
         already_predicted = []
-        print("6")
+        
         for e in google_events:
           e_date = e['date'].split('T')[0]
           if (e['label'], e_date) in cache_lookup:
@@ -164,11 +164,10 @@ async def sync_google_calendar(request: Request, user: dict = Depends(get_curren
               })
           else:
             to_predict.append(e)
-        print("7")
+        
         # 4. Predict spending for NEW events only
         new_estimated = []
         if to_predict:
-            print(to_predict)
             try:
                 predictions = predict_events_batch(to_predict)
                 for i, e in enumerate(to_predict):
