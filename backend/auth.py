@@ -15,7 +15,7 @@ oauth.register(
     client_id=os.getenv('GOOGLE_CLIENT_ID'),
     client_secret=os.getenv('GOOGLE_CLIENT_SECRET'),
     client_kwargs={
-        'scope': 'openid email profile'
+        'scope': 'openid email profile https://www.googleapis.com/auth/calendar.events.readonly'
     }
 )
 
@@ -36,6 +36,7 @@ async def auth_callback(request: Request):
         
         # For session-based auth:
         request.session['user'] = user_info
+        request.session['access_token'] = token.get('access_token')
 
         frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
         return RedirectResponse(url=f"{frontend_url}/dashboard")

@@ -4,6 +4,8 @@ import { cva } from "class-variance-authority";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { TbAnalyze, TbCalendarMonth, TbChartBar, TbCoin, TbLoader } from "react-icons/tb";
+import GoogleCalendarSyncButton from "@/components/GoogleCalendarSyncButton";
+import PlaidLinkButton from "@/components/PlaidButton";
 
 interface DashboardData {
   debtProgress: {
@@ -55,25 +57,26 @@ export default function Dashboard() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    async function fetchDashboard() {
-      try {
-        const res = await fetch(process.env.NEXT_PUBLIC_API_URL + "/api/dashboard", {
-          method: "GET",
-          credentials: "include",
-        });
-        if (res.ok) {
-          const json = await res.json();
-          setData(json);
-        } else if (res.status === 401) {
-          window.location.href = "/";
-        }
-      } catch (err) {
-        console.error("Failed to fetch dashboard", err);
-      } finally {
-        setLoading(false);
+  const fetchDashboard = async () => {
+    try {
+      const res = await fetch(process.env.NEXT_PUBLIC_API_URL + "/api/dashboard", {
+        method: "GET",
+        credentials: "include",
+      });
+      if (res.ok) {
+        const json = await res.json();
+        setData(json);
+      } else if (res.status === 401) {
+        window.location.href = "/";
       }
+    } catch (err) {
+      console.error("Failed to fetch dashboard", err);
+    } finally {
+      setLoading(false);
     }
+  };
+
+  useEffect(() => {
     fetchDashboard();
   }, []);
 
@@ -138,10 +141,13 @@ export default function Dashboard() {
           {/* Left Column: Upcoming Events */}
           <div className="flex flex-col gap-6 xl:col-span-2">
             <div className="flex grow flex-col rounded-xl border border-slate-100 bg-white p-5 shadow-sm">
-              <h3 className="mb-4 flex items-center gap-2 text-base font-bold">
-                <TbCalendarMonth className="h-5 w-5" />
-                Upcoming Events
-              </h3>
+              <div className="mb-4 flex items-center justify-between">
+                <h3 className="flex items-center gap-2 text-base font-bold">
+                  <TbCalendarMonth className="h-5 w-5" />
+                  Upcoming Events
+                </h3>
+                <GoogleCalendarSyncButton onSyncComplete={fetchDashboard} />
+              </div>
               <div className="grow space-y-4">
                 {upcomingEvents.map((event, i) => (
                   <div key={i} className="group rounded-lg border border-slate-100 bg-slate-50 p-3 transition-all">

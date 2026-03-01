@@ -10,7 +10,8 @@ from snowflake_client import (save_access_token, get_access_token, save_debts,
     get_cached_milestone, save_milestone, save_category_mappings,
     get_dashboard_data)
 import time
-from cortex import generate_plan, chat, generate_milestone, classify_transactions
+from cortex import generate_plan, chat, generate_milestone, classify_transactions, predict_event_spend
+from google_calendar_client import get_google_calendar_events
 from math_engine import calc_all_strategies
 from pydantic import BaseModel
 from typing import List
@@ -120,6 +121,46 @@ async def predict_event_cost(req: PredictEventRequest, user: dict = Depends(get_
         prediction = predict_event_spend(req.label, req.date)
         return prediction
     except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/google-calendar/sync")
+async def sync_google_calendar(request: Request, user: dict = Depends(get_current_user)):
+    try:
+        user_id = user['sub']
+        access_token = request.session.get('access_token')
+        if not access_token:
+             raise HTTPException(status_code=401, detail="Google authentication required. Please log in again.")
+             
+        # 1. Fetch events
+        events = await get_google_calendar_events(access_token, days=30)
+        
+        # 2. Predict spending for each event
+        estimated_events = []
+        for e in events:
+            try:
+                prediction = predict_event_spend(e['label'], e['date'])
+                estimated_events.append({
+                    "date": e['date'],
+                    "type": "Calendar Event",
+                    "label": e['label'],
+                    "amount": prediction.get('predictedAmount', 0)
+                })
+            except Exception as ai_e:
+                print(f"AI estimation failed for {e['label']}: {ai_e}")
+                estimated_events.append({
+                    "date": e['date'],
+                    "type": "Calendar Event",
+                    "label": e['label'],
+                    "amount": 0
+                })
+        
+        # 3. Save to Snowflake
+        if estimated_events:
+            save_calendar_events(user_id, estimated_events)
+            
+        return {"synced": len(estimated_events), "events": estimated_events}
+    except Exception as e:
+        print(f"Sync error: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 # ── PLAN ROUTES ───────────────────────────────────────
