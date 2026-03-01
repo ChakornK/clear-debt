@@ -1,72 +1,44 @@
+"use client";
+
 import { cva } from "class-variance-authority";
 import Link from "next/link";
-import { TbAnalyze, TbCalendarMonth, TbChartBar, TbCoin } from "react-icons/tb";
+import { useEffect, useState } from "react";
+import { TbAnalyze, TbCalendarMonth, TbChartBar, TbCoin, TbLoader } from "react-icons/tb";
 
-const mockData = {
+interface DashboardData {
   debtProgress: {
-    paid: 14500,
-    total: 42000,
-    targetDate: "June 2026",
-  },
+    paid: number;
+    total: number;
+    targetDate: string;
+  };
   achievement: {
-    label: "Underbudget Streak",
-    value: "5 weeks!",
-  },
-  upcomingEvents: [
-    {
-      time: "Tomorrow, 14:00",
-      cost: 15,
-      name: "Study Group at Coffee Shop",
-      location: "Downtown Branch",
-    },
-    {
-      time: "Thu, 18:30",
-      cost: 45,
-      name: "Weekly Grocery Run",
-      location: "Organic Market",
-    },
-    {
-      time: "Sat, 10:00",
-      cost: 0,
-      name: "Morning Hike",
-      location: "Canyon Trail",
-    },
-  ],
+    label: string;
+    value: string;
+  };
+  upcomingEvents: Array<{
+    time: string;
+    cost: number;
+    name: string;
+    location: string;
+    category?: string;
+  }>;
   weeklySpending: {
-    budgetLimit: 500,
-    weeks: [
-      { week: "W1", spent: 225, active: false },
-      { week: "W2", spent: 190, active: false },
-      { week: "W3", spent: 310, active: true },
-      { week: "W4", spent: 260, active: false },
-      { week: "W5", spent: 125, active: false },
-    ],
-  },
-  dailyDistribution: [
-    { day: "M", spent: 28, active: false },
-    { day: "T", spent: 37, active: false },
-    { day: "W", spent: 32, active: false },
-    { day: "T", spent: 46, active: false },
-    { day: "F", spent: 64, active: true },
-    { day: "S", spent: 55, active: true },
-    { day: "S", spent: 22, active: false },
-  ],
+    budgetLimit: number;
+    weeks: Array<{ week: string; spent: number; active: boolean }>;
+  };
+  dailyDistribution: Array<{ day: string; spent: number; active: boolean }>;
   spendingCategories: {
-    total: 482,
-    categories: [
-      { color: "bg-green-400", label: "Essentials", pct: 65 },
-      { color: "bg-slate-400", label: "Leisure", pct: 20 },
-      { color: "bg-slate-200", label: "Other", pct: 15 },
-    ],
-  },
+    total: number;
+    categories: Array<{ color: string; label: string; pct: number }>;
+  };
   milestone: {
-    tag: "Milestone Alert",
-    title: "You saved an extra $240 this month from dining out!",
-    description: "That's enough to clear your 'Subscription Debt' 3 months early. Would you like to apply this to your plan?",
-    primaryCTA: "Apply to Debt",
-    secondaryCTA: "View Details",
-  },
-};
+    tag: string;
+    title: string;
+    description: string;
+    primaryCTA: string;
+    secondaryCTA: string;
+  };
+}
 
 const variants = {
   upcomingEventsCostBadge: cva("", {
@@ -80,7 +52,42 @@ const variants = {
 };
 
 export default function Dashboard() {
-  const { debtProgress, achievement, upcomingEvents, weeklySpending, dailyDistribution, spendingCategories, milestone } = mockData;
+  const [data, setData] = useState<DashboardData | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchDashboard() {
+      try {
+        const res = await fetch(process.env.NEXT_PUBLIC_API_URL + "/api/dashboard", {
+          method: "GET",
+          credentials: "include",
+        });
+        if (res.ok) {
+          const json = await res.json();
+          setData(json);
+        } else if (res.status === 401) {
+          window.location.href = "/";
+        }
+      } catch (err) {
+        console.error("Failed to fetch dashboard", err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchDashboard();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-white">
+        <TbLoader className="h-8 w-8 animate-spin text-green-500" />
+      </div>
+    );
+  }
+
+  if (!data) return null;
+
+  const { debtProgress, achievement, upcomingEvents, weeklySpending, dailyDistribution, spendingCategories, milestone } = data;
 
   const debtPct = ((debtProgress.paid / debtProgress.total) * 100).toFixed(1);
   const dailyBudget = weeklySpending.budgetLimit / 7;
@@ -139,7 +146,12 @@ export default function Dashboard() {
                 {upcomingEvents.map((event, i) => (
                   <div key={i} className="group rounded-lg border border-slate-100 bg-slate-50 p-3 transition-all">
                     <div className="flex items-start justify-between">
-                      <span className="text-xs font-bold uppercase text-slate-400">{event.time}</span>
+                      <div className="flex flex-col gap-1">
+                        <span className="text-xs font-bold uppercase text-slate-400">{event.time}</span>
+                        {event.category && (
+                          <span className="w-fit rounded-full bg-slate-200 px-2 py-0.5 text-[8px] font-black uppercase text-slate-500">{event.category}</span>
+                        )}
+                      </div>
                       <span
                         className={`rounded px-2 py-0.5 text-[10px] font-bold ${variants.upcomingEventsCostBadge({ intents: event.cost > 0 ? "spend" : "none" })}`}
                       >
