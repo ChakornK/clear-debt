@@ -336,7 +336,7 @@ async def get_dashboard(user: dict = Depends(get_current_user)):
         for e in events:
             if datetime.fromisoformat(e['date']) >= datetime.now():
                 dt = datetime.fromisoformat(e['date'])
-                time_str = dt.strftime("%a, %H:%M") if dt.hour > 0 else dt.strftime("%a")
+                time_str = dt.strftime("%a, %b %d, %H:%M") if dt.hour > 0 else dt.strftime("%a, %b %d")
                 upcoming.append({
                     "time": time_str,
                     "cost": e['amount'],
