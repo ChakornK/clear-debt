@@ -297,23 +297,18 @@ export default function Setup() {
                 </div>
               </div>
 
-              <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-slate-50/50 py-12 text-center transition-all hover:border-blue-200 hover:bg-white">
-                <div className="mb-4 flex flex-col items-center">
-                  <TbBrandGoogle className="mb-2 h-12 w-12 text-slate-300" />
-                  <p className="text-sm font-bold text-slate-600">Connect Google Account</p>
-                  <p className="text-[10px] uppercase tracking-widest text-slate-400">Secure OAuth2 Sync</p>
-                </div>
+              <div className="flex justify-center py-4">
                 <GoogleCalendarSyncButton onSyncComplete={() => {}} />
               </div>
 
               {mode === "onboarding" && (
-                <div className="mt-8 flex justify-end">
+                <div className="mt-6 flex justify-end">
                   <button
                     onClick={() => handleNextStep(2)}
-                    className="group flex items-center gap-2 rounded-xl bg-slate-900 px-8 py-3.5 font-bold text-white transition-all hover:bg-slate-800"
+                    className="group flex items-center gap-2 rounded-xl bg-slate-900 px-6 py-3 text-sm font-bold text-white transition-all hover:bg-slate-800"
                   >
                     Continue to Debts
-                    <TbArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-1" />
+                    <TbArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
                   </button>
                 </div>
               )}
