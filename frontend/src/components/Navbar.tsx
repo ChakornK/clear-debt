@@ -46,7 +46,7 @@ export const Navbar = () => {
   const pathname = usePathname();
 
   return (
-    <nav className="w-2xs flex flex-col items-stretch gap-2 bg-neutral-100 p-4 text-slate-900">
+    <nav className="w-2xs flex shrink-0 flex-col items-stretch gap-2 bg-neutral-100 p-4 text-slate-900">
       <div className="mb-4 flex items-center gap-4">
         <div className="h-14 w-14 overflow-clip rounded-full bg-neutral-200">{picture && <img src={picture} alt="" className="h-full w-full" />}</div>
         <div className="*:leading-tight">
