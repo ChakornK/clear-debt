@@ -40,3 +40,7 @@ class GeneratePlanRequest(BaseModel):
 class ChatRequest(BaseModel):
     message: str
     history: Optional[List[ChatMessage]] = []
+
+class PredictEventRequest(BaseModel):
+    label: str
+    date: str

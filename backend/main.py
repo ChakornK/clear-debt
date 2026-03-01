@@ -1,12 +1,12 @@
 from fastapi import FastAPI, HTTPException, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
-from models import ExchangeTokenRequest, SaveDebtsRequest, GeneratePlanRequest, ChatRequest, CalendarEvent
+from models import ExchangeTokenRequest, SaveDebtsRequest, GeneratePlanRequest, ChatRequest, CalendarEvent, PredictEventRequest
 from plaid_client import create_link_token, exchange_public_token, get_accounts, get_transactions, get_liabilities
 from snowflake_client import (save_access_token, get_access_token, save_debts,
     get_debts, save_transactions, get_transactions_raw, get_spending_summary,
     save_calendar_events, get_calendar_events, save_plan, get_connection)
-from cortex import generate_plan, chat
+from cortex import generate_plan, chat, predict_event_spend
 from math_engine import calc_all_strategies
 from pydantic import BaseModel
 from typing import List
@@ -27,7 +27,6 @@ app.add_middleware(SessionMiddleware, secret_key=os.getenv("SECRET_KEY", "fallba
 
 # ── ROUTES ─────────────────────────────────────────────
 app.include_router(auth_router)
-
 
 # ── PLAID ROUTES ──────────────────────────────────────
 
@@ -90,6 +89,7 @@ def get_debts_route(user: dict = Depends(get_current_user)):
         raise HTTPException(status_code=500, detail=str(e))
 
 # ── CALENDAR ROUTES ───────────────────────────────────
+
 class CalendarResponse(BaseModel):
     events: List[CalendarEvent]
 
@@ -107,6 +107,14 @@ def save_events(events: List[CalendarEvent], user: dict = Depends(get_current_us
         user_id = user['sub']
         save_calendar_events(user_id, [e.model_dump() for e in events])
         return {"saved": len(events)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/calendar/predict")
+async def predict_event_cost(req: PredictEventRequest, user: dict = Depends(get_current_user)):
+    try:
+        prediction = predict_event_spend(req.label, req.date)
+        return prediction
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -131,7 +139,6 @@ async def generate_plan_route(req: GeneratePlanRequest, user: dict = Depends(get
 
 # ── CHAT ROUTES ───────────────────────────────────────
 
-
 @app.post("/api/chat")
 async def chat_route(req: ChatRequest, user: dict = Depends(get_current_user)):
     try:
@@ -140,7 +147,6 @@ async def chat_route(req: ChatRequest, user: dict = Depends(get_current_user)):
         if not debts:
             return {"reply": "No debts found. Please add your debts first so I can give you specific advice."}
 
-        # Load existing plan if available
         plan = {}
         try:
             conn = get_connection()
@@ -172,10 +178,7 @@ async def chat_route(req: ChatRequest, user: dict = Depends(get_current_user)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-
-
-from datetime import datetime, timedelta
-import random
+# ── DASHBOARD ROUTES ──────────────────────────────────
 
 @app.get("/api/dashboard")
 async def get_dashboard(user: dict = Depends(get_current_user)):
@@ -185,25 +188,17 @@ async def get_dashboard(user: dict = Depends(get_current_user)):
         if not access_token:
             raise HTTPException(status_code=404, detail="No linked account found")
 
-        # Pull real data from Snowflake
         debts = get_debts(user_id)
         spending = get_spending_summary(user_id)
         events = get_calendar_events(user_id)
         transactions = get_transactions(access_token, user_id)
 
-        # ── DEBT PROGRESS ──────────────────────────────
         total_debt = sum(d['balance'] for d in debts)
-        # Calculate how much has been paid by comparing to original balances
-        # For now derive paid amount from transaction history payments
-        paid = round(total_debt * 0.34, 2)  # fallback estimate
-
-        # Estimate payoff date from minimum payments
+        paid = round(total_debt * 0.34, 2)
         monthly_payment = sum(d['minimum'] for d in debts) + 200
         months_remaining = int(total_debt / monthly_payment) if monthly_payment else 60
         target_date = (datetime.now() + timedelta(days=months_remaining * 30)).strftime("%B %Y")
 
-        # ── WEEKLY SPENDING ────────────────────────────
-        # Group transactions by week (last 5 weeks)
         weekly = []
         for i in range(4, -1, -1):
             week_start = datetime.now() - timedelta(weeks=i+1)
@@ -221,7 +216,6 @@ async def get_dashboard(user: dict = Depends(get_current_user)):
 
         budget_limit = 500
 
-        # ── DAILY DISTRIBUTION ─────────────────────────
         days = ["M", "T", "W", "T", "F", "S", "S"]
         today_weekday = datetime.now().weekday()
         daily = []
@@ -238,7 +232,6 @@ async def get_dashboard(user: dict = Depends(get_current_user)):
                 "active": i >= today_weekday - 1
             })
 
-        # ── SPENDING CATEGORIES ────────────────────────
         category_map = {
             "Groceries": "Essentials", "Utilities": "Essentials",
             "Transport": "Essentials", "Dining": "Leisure",
@@ -256,7 +249,6 @@ async def get_dashboard(user: dict = Depends(get_current_user)):
             {"color": "bg-slate-200", "label": "Other",      "pct": round(buckets["Other"]       / total_spend * 100)},
         ]
 
-        # ── UPCOMING EVENTS ────────────────────────────
         upcoming = []
         for e in events[:3]:
             event_dt = datetime.fromisoformat(e['date'])
@@ -274,7 +266,6 @@ async def get_dashboard(user: dict = Depends(get_current_user)):
                 "location": "—"
             })
 
-        # Pad with defaults if fewer than 3 events
         defaults = [
             {"time": "Tomorrow, 14:00", "cost": 15,  "name": "Study Group at Coffee Shop", "location": "Downtown Branch"},
             {"time": "Thu, 18:30",      "cost": 45,  "name": "Weekly Grocery Run",         "location": "Organic Market"},
@@ -283,15 +274,12 @@ async def get_dashboard(user: dict = Depends(get_current_user)):
         while len(upcoming) < 3:
             upcoming.append(defaults[len(upcoming)])
 
-        # ── ACHIEVEMENT ────────────────────────────────
         under_budget_weeks = sum(1 for w in weekly if w['spent'] < budget_limit)
         achievement = {
             "label": "Underbudget Streak",
             "value": f"{under_budget_weeks} week{'s' if under_budget_weeks != 1 else ''}!"
         }
 
-        # ── MILESTONE ──────────────────────────────────
-        # Find highest leisure spend reduction opportunity
         leisure_spend = buckets.get("Leisure", 0)
         saved_estimate = round(leisure_spend * 0.3, 0)
         smallest_debt = min(debts, key=lambda d: d['balance']) if debts else None

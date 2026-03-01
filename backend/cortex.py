@@ -85,3 +85,27 @@ Answer questions using their exact numbers. Be concise and actionable."""
         contents=full_prompt
     )
     return response.text
+
+def predict_event_spend(label: str, date: str):
+    prompt = f"""You are a personal finance assistant. A user has added a calendar event called "{label}" on {date}.
+
+Based on the event name, predict the likely spending in CAD.
+
+Respond ONLY with valid JSON, no markdown:
+{{
+  "predictedAmount": 25,
+  "category": "Dining",
+  "confidence": "high",
+  "explanation": "Coffee shop study sessions typically include beverages and snacks",
+  "breakdown": [
+    {{"item": "Coffee", "amount": 8}},
+    {{"item": "Snack", "amount": 7}}
+  ]
+}}"""
+
+    response = client.models.generate_content(
+        model='models/gemini-2.5-flash',
+        contents=prompt
+    )
+    clean = response.text.strip().replace('```json', '').replace('```', '').strip()
+    return json.loads(clean)
