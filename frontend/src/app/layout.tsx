@@ -20,10 +20,10 @@ export default function RootLayout({
         <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Onest:wght@100..900&display=swap" />
       </head>
       <body className="h-dvh flex">
-        <Navbar />
-        <div className="grow overflow-auto">
-          <GlobalProvider>{children}</GlobalProvider>
-        </div>
+        <GlobalProvider>
+          <Navbar />
+          <div className="grow overflow-auto">{children}</div>
+        </GlobalProvider>
       </body>
     </html>
   );
