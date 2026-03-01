@@ -18,6 +18,7 @@ function LinkButton({ linkToken }: LinkButtonProps) {
       await fetch(process.env.NEXT_PUBLIC_API_URL + "/api/plaid/exchange", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({ public_token }),
       });
       setDidLink(true);
@@ -57,8 +58,22 @@ export default function PlaidLinkButton() {
   useEffect(() => {
     async function generateToken(): Promise<void> {
       try {
-        const response = await fetch(process.env.NEXT_PUBLIC_API_URL + "/api/plaid/link-token", { method: "GET" });
+        const response = await fetch(process.env.NEXT_PUBLIC_API_URL + "/api/plaid/link-token", {
+          method: "GET",
+          credentials: "include",
+        });
+
+        if (response.status === 401) {
+          setError("Please login first to link your bank account.");
+          return;
+        }
+
+        if (!response.ok) {
+          throw new Error("Failed to get link token");
+        }
+
         const data = await response.json();
+
         setLinkToken(data.link_token);
       } catch {
         setError("Failed to initialise Plaid.");
