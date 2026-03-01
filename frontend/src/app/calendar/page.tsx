@@ -553,8 +553,8 @@ export default function Calendar() {
   }, [year, month]);
 
   const monthEvents = events.filter((ev) => {
-    const eventDate = new Date(ev.date);
-    return eventDate.getFullYear() === year && eventDate.getMonth() === month;
+    const [evYear, evMonth] = ev.date.split("T")[0].split("-").map(Number);
+    return evYear === year && evMonth - 1 === month;
   });
 
   const monthSpendingTotal = monthEvents.filter((e) => !e.is_income).reduce((s, ev) => s + ev.amount, 0);
