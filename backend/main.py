@@ -116,11 +116,15 @@ import random
 @app.get("/api/dashboard/{user_id}")
 async def get_dashboard(user_id: str):
     try:
+        access_token = get_access_token(user_id)
+        if not access_token:
+            raise HTTPException(status_code=404, detail="No linked account found")
+        
         # Pull real data from Snowflake
         debts = get_debts(user_id)
         spending = get_spending_summary(user_id)
         events = get_calendar_events(user_id)
-        transactions = get_transactions_raw(user_id)
+        transactions = get_transactions(access_token, user_id)
 
         # ── DEBT PROGRESS ──────────────────────────────
         total_debt = sum(d['balance'] for d in debts)
