@@ -2,13 +2,12 @@
 
 import { ActivityInputField } from "@/components/ActivityInputField";
 import { DebtInputField } from "@/components/DebtInputField";
-import CalendarButton from "@/components/CalendarButton";
-import { useEffect, useState } from "react";
-import { TbArrowBigRightLines } from "react-icons/tb";
+import { useEffect, useState, useMemo } from "react";
+import { TbArrowRight, TbArrowLeft, TbCheck, TbCalendarCheck, TbWallet, TbPigMoney, TbCreditCard, TbCoin, TbLoader, TbBrandGoogle } from "react-icons/tb";
 import AddButton from "@/components/AddButton";
-import api from "@/api/axios";
-import { MouseEvent } from 'react';
+import { apiFetch } from "@/lib/api";
 import { DebtType } from "@/types/types";
+import GoogleCalendarSyncButton from "@/components/GoogleCalendarSyncButton";
 
 interface Debt {
   id: string;
@@ -28,6 +27,13 @@ interface Activity {
   estimatedCost: number;
 }
 
+const STEPS = [
+  { id: 1, title: "Sync Schedule", icon: TbCalendarCheck },
+  { id: 2, title: "Add Debts", icon: TbCreditCard },
+  { id: 3, title: "Spending Triggers", icon: TbCoin },
+  { id: 4, title: "Income & Goals", icon: TbWallet },
+];
+
 export default function Setup() {
   const [debts, setDebts] = useState<Debt[]>([
     {
@@ -39,263 +45,509 @@ export default function Setup() {
       minimum: 0,
       due: 1,
       source: "manual",
-    }
+    },
   ]);
 
-  const [activities, setActivities] = useState<Activity[]>([
-    { id: 1, name: "", category: "Eating out", estimatedCost: 0 }
-  ]);
+  const [activities, setActivities] = useState<Activity[]>([{ id: 1, name: "", category: "Food & Dining", estimatedCost: 0 }]);
 
   const [monthlyIncome, setMonthlyIncome] = useState<number>(0);
   const [monthlyLimit, setMonthlyLimit] = useState<number>(0);
+  const [savingsPct, setSavingsPct] = useState<number>(20);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(true);
 
-  // Calculate amount left over
-  const totalMinimumPayments = debts.reduce((sum, d) => sum + (d.minimum || 0), 0);
+  const [mode, setMode] = useState<"onboarding" | "edit">("onboarding");
+  const [step, setStep] = useState(1);
+
+  useEffect(() => {
+    const fetchUserData = async () => {
+      try {
+        const res = await apiFetch("/api/user/setup");
+        if (res.ok) {
+          const data = await res.json();
+          if (data.has_completed_setup) {
+            setMode("edit");
+          }
+          if (data.debts?.length > 0) setDebts(data.debts);
+          if (data.activities?.length > 0) setActivities(data.activities);
+          if (data.monthly_income) setMonthlyIncome(data.monthly_income);
+          if (data.monthly_limit) setMonthlyLimit(data.monthly_limit);
+          if (data.savings_pct) setSavingsPct(data.savings_pct);
+        }
+      } catch (err) {
+        console.error("Failed to fetch setup data", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    const searchParams = new URLSearchParams(window.location.search);
+    if (searchParams.get("mode") === "edit") {
+      setMode("edit");
+    }
+
+    fetchUserData();
+  }, []);
+
+  const totalMinimumPayments = useMemo(() => debts.reduce((sum, d) => sum + (d.minimum || 0), 0), [debts]);
+
   const amountLeftOver = monthlyIncome - monthlyLimit - totalMinimumPayments;
-
-  // ── DEBT HANDLERS ──────────────────────────────────
+  const toSavings = amountLeftOver > 0 ? (amountLeftOver * savingsPct) / 100 : 0;
+  const toDebt = amountLeftOver > 0 ? amountLeftOver - toSavings : 0;
 
   const addDebtElement = () => {
-    const newDebt: Debt = {
-      id: `debt-${Date.now()}`,
-      name: "",
-      type: DebtType.Other,
-      balance: 0,
-      apr: 0,
-      minimum: 0,
-      due: 1,
-      source: "manual",
-    };
-    setDebts(prev => [...prev, newDebt]);
+    setDebts((prev) => [
+      ...prev,
+      {
+        id: `debt-${Date.now()}`,
+        name: "",
+        type: DebtType.Other,
+        balance: 0,
+        apr: 0,
+        minimum: 0,
+        due: 1,
+        source: "manual",
+      },
+    ]);
   };
 
-  const removeDebtElement = (event: MouseEvent<HTMLButtonElement>) => {
-    const id = event.currentTarget.getAttribute("id");
-    setDebts(prev => prev.filter(d => d.id !== id));
+  const removeDebtElement = (e: React.MouseEvent<HTMLButtonElement>) => {
+    const id = e.currentTarget.getAttribute("id");
+    setDebts((prev) => prev.filter((d) => d.id !== id));
   };
 
   const onDebtFieldChange = (id: string, field: string, value: string | number) => {
-    setDebts(prev =>
-      prev.map(d => d.id === id ? { ...d, [field]: value } : d)
-    );
+    setDebts((prev) => prev.map((d) => (d.id === id ? { ...d, [field]: value } : d)));
   };
 
-  // ── ACTIVITY HANDLERS ──────────────────────────────
-
   const addActivityElement = () => {
-    const newActivity: Activity = {
-      id: Date.now(),
-      name: "",
-      category: "Eating out",
-      estimatedCost: 0,
-    };
-    setActivities(prev => [...prev, newActivity]);
+    setActivities((prev) => [
+      ...prev,
+      {
+        id: Date.now(),
+        name: "",
+        category: "Food & Dining",
+        estimatedCost: 0,
+      },
+    ]);
   };
 
   const removeActivityElement = (id: number) => {
-    setActivities(prev => prev.filter(a => a.id !== id));
+    setActivities((prev) => prev.filter((a) => a.id !== id));
   };
 
   const onActivityFieldChange = (id: number, field: string, value: string | number) => {
-    setActivities(prev =>
-      prev.map(a => a.id === id ? { ...a, [field]: value } : a)
-    );
+    setActivities((prev) => prev.map((a) => (a.id === id ? { ...a, [field]: value } : a)));
   };
-
-  // ── SAVE ───────────────────────────────────────────
 
   const onSave = async () => {
     setError("");
-
-    // Validate debts
-    const invalidDebts = debts.filter(d => !d.name || d.balance <= 0);
+    const invalidDebts = debts.filter((d) => !d.name || d.balance < 0);
     if (invalidDebts.length > 0) {
-      setError("Please fill in all debt fields (name and balance are required).");
+      setError("Please ensure all debts have a name.");
       return;
     }
 
     setSaving(true);
     try {
-      // Save debts to backend
-      await api.post('/debts/save', {
-        debts: debts,
-        calendar_events: []
+      await apiFetch("/api/debts/save", {
+        method: "POST",
+        body: JSON.stringify({
+          debts,
+          calendar_events: activities.map((a) => ({
+            date: new Date().toISOString().split("T")[0], // placeholder for generic trigger
+            type: a.category,
+            label: a.name,
+            amount: a.estimatedCost,
+          })),
+        }),
       });
 
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
+      if (mode === "onboarding") {
+        window.location.href = "/dashboard";
+      }
     } catch (err: any) {
-      setError(err?.response?.data?.detail || "Failed to save. Please try again.");
+      setError("Failed to save. Please try again.");
     } finally {
       setSaving(false);
     }
   };
 
-  const connectCalendar = (provider: string) => {
-    // TODO: implement OAuth flow for each provider
-    alert(`${provider} calendar connection coming soon.`);
-  };
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-white">
+        <TbLoader className="h-8 w-8 animate-spin text-green-500" />
+      </div>
+    );
+  }
+
+  const isStepVisible = (s: number) => mode === "edit" || step === s;
 
   return (
-    <main className="flex flex-1 flex-col gap-6 p-6 xl:px-20 xl:py-8">
-      <div>
-
-        {/* Calendar Connection */}
-        <div className="px-6 py-7 mb-6">
-          <div className="flex flex-col gap-2">
-            <p className="text-2xl font-bold">Sync Your Schedule</p>
-            <p className="text-slate-600 dark:text-slate-400 pb-4">
-              Identify potential spending triggers by connecting your calendars.
-            </p>
-            <div className="flex flex-row gap-4 flex-wrap">
-              <CalendarButton onClick={() => connectCalendar('Google')}>Connect Google Calendar</CalendarButton>
-              <CalendarButton onClick={() => connectCalendar('Outlook')}>Connect Outlook Calendar</CalendarButton>
-              <CalendarButton onClick={() => connectCalendar('Apple')}>Connect Apple Calendar</CalendarButton>
-            </div>
-          </div>
+    <div className="min-h-screen bg-slate-50/50 pb-20 text-slate-900">
+      {/* Header section restricted width */}
+      <div className="mx-auto max-w-4xl px-6 pt-12 md:pt-16">
+        <div className="mb-12">
+          <h1 className="text-4xl font-black tracking-tight text-slate-900">{mode === "onboarding" ? "Tailor Your Journey" : "Adjust Your Setup"}</h1>
+          <p className="mt-2 text-lg text-slate-500">
+            {mode === "onboarding" ?
+              "Let's configure your financial engine for maximum debt-clearing speed."
+            : "Update your income, debts, or spending triggers as your life changes."}
+          </p>
         </div>
 
-        {/* Debt */}
-        <div className="px-6 py-7 bg-white rounded-2xl shadow-sm border border-green-200 mb-6">
-          <div className="flex flex-col gap-4">
-            <p className="text-2xl font-bold">Add Your Debts</p>
-            <p className="text-slate-600 dark:text-slate-400">
-              List your outstanding balances to calculate your payoff strategy.
-            </p>
-            {debts.map((d) => (
-              <DebtInputField
-                key={d.id}
-                id={d.id}
-                debt={d}
-                onRemoveClick={removeDebtElement}
-                onFieldChange={onDebtFieldChange}
-              />
-            ))}
-            <AddButton onClick={addDebtElement}>Add another debt</AddButton>
-          </div>
-        </div>
-
-        {/* Spending Triggers */}
-        <div className="px-6 py-7 mb-6">
-          <div className="flex flex-col gap-2">
-            <p className="text-2xl font-bold">Smart Spending Triggers</p>
-            <p className="text-slate-600 dark:text-slate-400 pb-4">
-              Set estimated costs for common activities detected in your calendar.
-            </p>
-            <div className="flex flex-row flex-wrap gap-4">
-              {activities.map((a) => (
-                <ActivityInputField
-                  key={a.id}
-                  id={a.id}
-                  activity={a}
-                  onFieldChange={onActivityFieldChange}
-                  onRemove={removeActivityElement}
-                />
+        {/* Progress Bar (Only show in onboarding) */}
+        {mode === "onboarding" && (
+          <div className="mb-12">
+            <div className="flex items-center justify-between px-2">
+              {STEPS.map((s) => (
+                <div key={s.id} className="flex flex-col items-center gap-2">
+                  <div
+                    className={`flex h-10 w-10 items-center justify-center rounded-full border-2 transition-all duration-500 ${step >= s.id ? "border-green-500 bg-green-500 text-white" : "border-slate-200 bg-white text-slate-400"}`}
+                  >
+                    {step > s.id ?
+                      <TbCheck className="h-6 w-6" />
+                    : <s.icon className="h-5 w-5" />}
+                  </div>
+                  <span className={`text-[10px] font-bold uppercase tracking-widest ${step >= s.id ? "text-green-600" : "text-slate-400"}`}>{s.title}</span>
+                </div>
               ))}
             </div>
-            <AddButton onClick={addActivityElement}>Add another activity</AddButton>
+            <div className="relative mt-4 h-1.5 w-full overflow-hidden rounded-full bg-slate-200">
+              <div
+                className="absolute left-0 h-full bg-green-500 transition-all duration-500"
+                style={{ width: `${((step - 1) / (STEPS.length - 1)) * 100}%` }}
+              />
+            </div>
           </div>
+        )}
+
+        <div className="flex flex-col gap-8">
+          {/* Step 1: Calendar */}
+          {isStepVisible(1) && (
+            <div className="rounded-3xl border border-slate-100 bg-white p-8 shadow-sm">
+              <div className="mb-6 flex items-center gap-3">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-50 text-blue-500">
+                  <TbCalendarCheck className="h-7 w-7" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-black">1. Sync with Google Calendar</h2>
+                  <p className="text-balance text-sm text-slate-500">We use your calendar to predict spending events before they happen.</p>
+                </div>
+              </div>
+
+              <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-slate-50/50 py-12 text-center transition-all hover:border-blue-200 hover:bg-white">
+                <div className="mb-4 flex flex-col items-center">
+                  <TbBrandGoogle className="mb-2 h-12 w-12 text-slate-300" />
+                  <p className="text-sm font-bold text-slate-600">Connect Google Account</p>
+                  <p className="text-[10px] uppercase tracking-widest text-slate-400">Secure OAuth2 Sync</p>
+                </div>
+                <GoogleCalendarSyncButton onSyncComplete={() => {}} />
+              </div>
+
+              {mode === "onboarding" && (
+                <div className="mt-8 flex justify-end">
+                  <button
+                    onClick={() => setStep(2)}
+                    className="group flex items-center gap-2 rounded-xl bg-slate-900 px-8 py-3.5 font-bold text-white transition-all hover:bg-slate-800"
+                  >
+                    Continue to Debts
+                    <TbArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-1" />
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Step 2: Debts */}
+          {isStepVisible(2) && (
+            <div className="rounded-3xl border border-slate-100 bg-white p-8 shadow-sm">
+              <div className="mb-8 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-red-50 text-red-500">
+                    <TbCreditCard className="h-7 w-7" />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-black">2. Your Outstanding Debts</h2>
+                    <p className="text-sm text-slate-500">List all balances you wish to eliminate.</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-6">
+                {debts.map((d) => (
+                  <DebtInputField key={d.id} id={d.id} debt={d} onRemoveClick={removeDebtElement} onFieldChange={onDebtFieldChange} />
+                ))}
+                <div className="flex justify-center">
+                  <AddButton onClick={addDebtElement}>Add another debt source</AddButton>
+                </div>
+              </div>
+
+              {mode === "onboarding" && (
+                <div className="mt-12 flex items-center justify-between">
+                  <button
+                    onClick={() => setStep(1)}
+                    className="flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-bold text-slate-400 transition-colors hover:text-slate-900"
+                  >
+                    <TbArrowLeft className="h-5 w-5" /> Back
+                  </button>
+                  <button
+                    onClick={() => setStep(3)}
+                    className="group flex items-center gap-2 rounded-xl bg-slate-900 px-8 py-3.5 font-bold text-white transition-all hover:bg-slate-800"
+                  >
+                    Define Triggers
+                    <TbArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-1" />
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Step 3: Spending Triggers */}
+          {isStepVisible(3) && (
+            <div className="rounded-3xl border border-slate-100 bg-white p-8 shadow-sm">
+              <div className="mb-6 flex items-center gap-3">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-50 text-amber-500">
+                  <TbCoin className="h-7 w-7" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-black">3. Smart Spending Triggers</h2>
+                  <p className="text-sm text-slate-500">Estimates for activities found in your calendar.</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-6">
+                {activities.map((a) => (
+                  <ActivityInputField key={a.id} id={a.id} activity={a} onFieldChange={onActivityFieldChange} onRemove={removeActivityElement} />
+                ))}
+                <div className="flex justify-center">
+                  <AddButton onClick={addActivityElement}>Add another trigger</AddButton>
+                </div>
+              </div>
+
+              {mode === "onboarding" && (
+                <div className="mt-12 flex items-center justify-between">
+                  <button
+                    onClick={() => setStep(2)}
+                    className="flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-bold text-slate-400 transition-colors hover:text-slate-900"
+                  >
+                    <TbArrowLeft className="h-5 w-5" /> Back
+                  </button>
+                  <button
+                    onClick={() => setStep(4)}
+                    className="group flex items-center gap-2 rounded-xl bg-slate-900 px-8 py-3.5 font-bold text-white transition-all hover:bg-slate-800"
+                  >
+                    Set Income & Goals
+                    <TbArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-1" />
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Step 4: Income & Split */}
+          {isStepVisible(4) && (
+            <div className="rounded-3xl border border-slate-100 bg-white p-8 shadow-sm">
+              <div className="mb-8 flex items-center gap-3">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-green-50 text-green-500">
+                  <TbWallet className="h-7 w-7" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-black">4. Income & Allocation Goal</h2>
+                  <p className="text-sm text-slate-500">Determine how your surplus funds are distributed.</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-12 lg:grid-cols-2">
+                <div className="flex flex-col gap-6">
+                  <div>
+                    <label className="mb-2 block text-xs font-bold uppercase tracking-widest text-slate-400">Monthly Net Income</label>
+                    <div className="relative">
+                      <span className="pointer-events-none absolute inset-y-0 left-4 flex items-center text-lg font-bold text-slate-400">$</span>
+                      <input
+                        type="number"
+                        min={0}
+                        value={monthlyIncome || ""}
+                        placeholder="0.00"
+                        onChange={(e) => setMonthlyIncome(parseFloat(e.target.value) || 0)}
+                        className="w-full rounded-2xl border border-slate-200 bg-white px-8 py-4 text-2xl font-black text-slate-900 outline-none transition-colors focus:border-green-400 focus:ring-4 focus:ring-green-50"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="mb-2 block text-xs font-bold uppercase tracking-widest text-slate-400">Strict Monthly Limit</label>
+                    <div className="relative">
+                      <span className="pointer-events-none absolute inset-y-0 left-4 flex items-center text-lg font-bold text-slate-400">$</span>
+                      <input
+                        type="number"
+                        min={0}
+                        value={monthlyLimit || ""}
+                        placeholder="0.00"
+                        onChange={(e) => setMonthlyLimit(parseFloat(e.target.value) || 0)}
+                        className="w-full rounded-2xl border border-slate-200 bg-white px-8 py-4 text-2xl font-black text-slate-900 outline-none transition-colors focus:border-green-400 focus:ring-4 focus:ring-green-50"
+                      />
+                    </div>
+                    <p className="mt-2 px-1 text-[10px] font-medium uppercase tracking-wide text-slate-400">Excludes debt minimums</p>
+                  </div>
+
+                  {monthlyIncome > 0 && (
+                    <div className="mt-4 space-y-4 rounded-2xl bg-slate-50 p-6">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="font-bold text-slate-500">Total Min. Payments</span>
+                        <span className="font-bold text-slate-900">-${totalMinimumPayments.toLocaleString()}</span>
+                      </div>
+                      <div className="h-px bg-slate-200" />
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-black uppercase tracking-widest text-slate-900">Leftover Flow</span>
+                        <span className={`text-xl font-black ${amountLeftOver >= 0 ? "text-green-500" : "text-red-500"}`}>
+                          ${amountLeftOver.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* DOUBLE SLIDER ALLOCATOR */}
+                <div className="flex flex-col gap-8 rounded-2xl border border-slate-100 bg-white p-8">
+                  <div className="text-center">
+                    <p className="mb-2 text-xs font-bold uppercase tracking-widest text-slate-400">Split Allocation</p>
+                    <h3 className="text-sm font-black text-slate-900">Where should your leftover flow go?</h3>
+                  </div>
+
+                  {amountLeftOver <= 0 ?
+                    <div className="flex h-full items-center justify-center rounded-2xl bg-slate-50 p-6 text-center text-sm italic text-slate-400">
+                      Please enter a monthly income and limit to see splitting options.
+                    </div>
+                  : <div className="flex flex-col gap-10">
+                      <div className="relative pt-6">
+                        {/* Custom visual track */}
+                        <div className="absolute top-8 flex h-4 w-full overflow-hidden rounded-full bg-slate-200">
+                          <div className="h-full bg-blue-400 transition-all" style={{ width: `${savingsPct}%` }} />
+                          <div className="h-full flex-1 bg-emerald-400 transition-all" />
+                        </div>
+
+                        <input
+                          type="range"
+                          min="0"
+                          max="100"
+                          value={savingsPct}
+                          onChange={(e) => setSavingsPct(Number(e.target.value))}
+                          className="absolute left-0 top-8 h-4 w-full cursor-pointer appearance-none bg-transparent accent-white"
+                          style={{ WebkitAppearance: "none" }}
+                        />
+                        <style jsx>{`
+                          input[type="range"]::-webkit-slider-thumb {
+                            -webkit-appearance: none;
+                            height: 28px;
+                            width: 28px;
+                            border-radius: 50%;
+                            background: white;
+                            box-shadow:
+                              0 4px 6px -1px rgb(0 0 0 / 0.1),
+                              0 2px 4px -2px rgb(0 0 0 / 0.1);
+                            border: 4px solid #1e293b;
+                            cursor: pointer;
+                            margin-top: -6px;
+                            position: relative;
+                            z-index: 20;
+                          }
+                          input[type="range"]::-moz-range-thumb {
+                            height: 28px;
+                            width: 28px;
+                            border-radius: 50%;
+                            background: white;
+                            box-shadow:
+                              0 4px 6px -1px rgb(0 0 0 / 0.1),
+                              0 2px 4px -2px rgb(0 0 0 / 0.1);
+                            border: 4px solid #1e293b;
+                            cursor: pointer;
+                            z-index: 20;
+                          }
+                        `}</style>
+
+                        <div className="mt-10 flex justify-between px-1">
+                          <div className="flex flex-col">
+                            <span className="text-[10px] font-black uppercase tracking-widest text-blue-500">Savings</span>
+                            <span className="text-lg font-black">{savingsPct}%</span>
+                          </div>
+                          <div className="flex flex-col text-right">
+                            <span className="text-[10px] font-black uppercase tracking-widest text-emerald-500">Debt Acceleration</span>
+                            <span className="text-lg font-black">{100 - savingsPct}%</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="rounded-2xl bg-blue-50 p-5 text-center transition-all hover:scale-105">
+                          <TbPigMoney className="mx-auto mb-2 h-6 w-6 text-blue-500" />
+                          <p className="text-[10px] font-bold uppercase tracking-widest text-blue-400">To Savings</p>
+                          <p className="text-2xl font-black text-blue-600">${toSavings.toFixed(0)}</p>
+                        </div>
+                        <div className="rounded-2xl bg-emerald-50 p-5 text-center transition-all hover:scale-105">
+                          <TbCoin className="mx-auto mb-2 h-6 w-6 text-emerald-500" />
+                          <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-400">Extra Debt Repayment</p>
+                          <p className="text-2xl font-black text-emerald-600">${toDebt.toFixed(0)}</p>
+                        </div>
+                      </div>
+                    </div>
+                  }
+                </div>
+              </div>
+
+              {mode === "onboarding" && (
+                <div className="mt-12 flex items-center justify-between">
+                  <button
+                    onClick={() => setStep(3)}
+                    className="flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-bold text-slate-400 transition-colors hover:text-slate-900"
+                  >
+                    <TbArrowLeft className="h-5 w-5" /> Back
+                  </button>
+                  <button
+                    onClick={onSave}
+                    disabled={saving}
+                    className="flex items-center justify-center gap-2 rounded-xl bg-green-500 px-10 py-4 font-black uppercase tracking-widest text-white shadow-lg shadow-green-200 transition-all hover:bg-green-600 active:scale-95 disabled:opacity-50"
+                  >
+                    {saving ?
+                      <TbLoader className="h-5 w-5 animate-spin" />
+                    : "Blast Off"}
+                    <TbCheck className="h-6 w-6" />
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
-        {/* Income & Spending Limit */}
-        <div className="px-6 py-7 bg-green-50 rounded-2xl shadow-sm border border-green-400 border-dashed mb-6">
-          <div className="flex flex-col gap-4">
-            <p className="text-2xl font-bold">Income & Goal</p>
-            <p className="text-slate-600 dark:text-slate-400">
-              Balance your lifestyle with your debt goals.
-            </p>
-            <div className="flex flex-row flex-wrap gap-8 items-end">
-              {/* monthly income */}
-              <div>
-                <p className="font-semibold ml-1 mb-1">Monthly Income ($)</p>
-                <input
-                  type="number"
-                  min={0}
-                  value={monthlyIncome || ''}
-                  placeholder="e.g. 4500"
-                  onChange={(e) => setMonthlyIncome(parseFloat(e.target.value) || 0)}
-                  className="w-fit block rounded-md text-green-600 bg-white border-green-200 shadow-sm focus:border-green-400 focus:ring-green-400 p-2 border"
-                />
-              </div>
-              {/* monthly spending limit */}
-              <div>
-                <p className="font-semibold ml-1 mb-1">Monthly Spending Limit ($)</p>
-                <input
-                  type="number"
-                  min={0}
-                  value={monthlyLimit || ''}
-                  placeholder="e.g. 2800"
-                  onChange={(e) => setMonthlyLimit(parseFloat(e.target.value) || 0)}
-                  className="w-fit block rounded-md text-green-600 bg-white border-green-200 shadow-sm focus:border-green-400 focus:ring-green-400 p-2 border"
-                />
-              </div>
-            </div>
-
-            {/* breakdown */}
-            {monthlyIncome > 0 && (
-              <div className="flex flex-col gap-2 mt-2 text-sm text-slate-600">
-                <div className="flex justify-between max-w-xs">
-                  <span>Monthly Income</span>
-                  <span className="font-medium text-green-700">${monthlyIncome.toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between max-w-xs">
-                  <span>Spending Limit</span>
-                  <span className="font-medium text-red-500">- ${monthlyLimit.toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between max-w-xs">
-                  <span>Min. Debt Payments</span>
-                  <span className="font-medium text-red-500">- ${totalMinimumPayments.toLocaleString()}</span>
-                </div>
+        {/* Global Action Bar (Mode: Edit) */}
+        {mode === "edit" && (
+          <div className="sticky bottom-8 mt-12 flex flex-col gap-4">
+            {error && (
+              <div className="mx-auto w-full max-w-sm animate-bounce rounded-xl border border-red-200 bg-red-50 p-4 text-center text-sm font-bold text-red-600">
+                {error}
               </div>
             )}
-
-            <div className={`px-5 py-6 mt-2 rounded-2xl shadow-sm ${amountLeftOver >= 0 ? 'bg-green-400' : 'bg-red-400'}`}>
-              <p className="font-bold text-2xl">
-                Amount left over: ${amountLeftOver.toLocaleString('en-CA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-              </p>
-              {amountLeftOver < 0 && (
-                <p className="text-white text-sm mt-1">
-                  You're over budget — consider reducing spending or increasing income.
-                </p>
-              )}
-              {amountLeftOver > 0 && (
-                <p className="text-green-900 text-sm mt-1">
-                  Apply this extra ${amountLeftOver.toFixed(2)}/mo to your debts to pay them off faster.
-                </p>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Error message */}
-        {error && (
-          <div className="px-4 py-3 mb-4 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm">
-            {error}
+            {saved && (
+              <div className="mx-auto w-full max-w-sm rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-center text-sm font-bold text-emerald-600">
+                Setup saved successfully!
+              </div>
+            )}
+            <button
+              onClick={onSave}
+              disabled={saving}
+              className="mx-auto flex w-full max-w-lg items-center justify-center gap-2 rounded-2xl bg-slate-900 px-8 py-5 text-lg font-black text-white shadow-xl transition-all hover:bg-slate-800 active:scale-95 disabled:opacity-50"
+            >
+              {saving ?
+                <TbLoader className="h-6 w-6 animate-spin" />
+              : "Update Everything"}
+            </button>
           </div>
         )}
-
-        {/* Success message */}
-        {saved && (
-          <div className="px-4 py-3 mb-4 bg-green-50 border border-green-200 rounded-xl text-green-600 text-sm">
-            ✓ Your debts have been saved successfully.
-          </div>
-        )}
-
-        {/* Save Button */}
-        <button
-          type="button"
-          onClick={onSave}
-          disabled={saving}
-          className="w-full mt-6 rounded-xl px-4 py-3 flex items-center justify-center gap-2 font-bold bg-green-400 hover:bg-green-300 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {saving ? 'Saving...' : 'Save'}
-          <TbArrowBigRightLines />
-        </button>
-
       </div>
-    </main>
+    </div>
   );
 }
