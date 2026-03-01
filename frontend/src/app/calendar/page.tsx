@@ -250,8 +250,6 @@ export default function Calendar() {
   const closePopover = useCallback((): void => setPopover(null), []);
 
   function handleDayClick(day: number, e: React.MouseEvent<HTMLDivElement>): void {
-    const events = eventMap[toDateStr(year, month, day)] ?? [];
-    if (!events.length) return;
     if (popover?.day === day) {
       setPopover(null);
       return;
@@ -321,12 +319,9 @@ export default function Calendar() {
                   key={`curr-${day}`}
                   onClick={(e) => handleDayClick(day, e)}
                   className={[
-                    "relative border-b border-slate-100 p-4 font-medium transition-colors",
-                    events.length ? "cursor-pointer" : "cursor-default",
+                    "relative cursor-pointer border-b border-slate-100 p-4 font-medium transition-colors",
                     idx < currDays.length - 1 ? "border-r" : "",
-                    isSelected ? "bg-green-50"
-                    : events.length ? "hover:bg-slate-50"
-                    : "",
+                    isSelected ? "bg-green-50" : "hover:bg-slate-50",
                   ]
                     .filter(Boolean)
                     .join(" ")}
@@ -394,9 +389,7 @@ export default function Calendar() {
         </div>
       </main>
 
-      {popover && selectedEvents.length > 0 && (
-        <EventPopover anchor={popover.anchor} events={selectedEvents} year={year} month={month} day={popover.day} onClose={closePopover} />
-      )}
+      {popover && <EventPopover anchor={popover.anchor} events={selectedEvents} year={year} month={month} day={popover.day} onClose={closePopover} />}
     </>
   );
 }
