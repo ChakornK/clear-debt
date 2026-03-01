@@ -166,14 +166,15 @@ def predict_events_batch(events: list):
     prompt = f"""You are a personal finance assistant. A user has these calendar events for the next 30 days:
 {event_list}
 
-Predict the likely spending in CAD for EACH event.
+Predict the likely spending in CAD for EACH event. For each event, classify the "type" as one of:
+'Housing', 'Food & Dining', 'Transportation', 'Healthcare', 'Entertainment', 'Shopping', 'Debt Payments', 'Other'.
 
 Respond ONLY with a JSON array of objects, one for each event in the exact same order:
 [
   {{
     "label": "event label",
     "predictedAmount": 25,
-    "category": "Dining",
+    "type": "other",
     "explanation": "Brief reasoning"
   }},
   ...

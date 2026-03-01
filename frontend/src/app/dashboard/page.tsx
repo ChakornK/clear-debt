@@ -3,10 +3,24 @@
 import { cva } from "class-variance-authority";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { TbAnalyze, TbCalendarMonth, TbChartBar, TbCoin, TbLoader } from "react-icons/tb";
+import {
+  TbAnalyze,
+  TbCalendarMonth,
+  TbChartBar,
+  TbCoin,
+  TbLoader,
+  TbHome,
+  TbToolsKitchen2,
+  TbCar,
+  TbBuildingHospital,
+  TbDeviceTv,
+  TbShoppingBag,
+  TbCreditCard,
+  TbQuestionMark,
+} from "react-icons/tb";
+import type { IconType } from "react-icons";
 import GoogleCalendarSyncButton from "@/components/GoogleCalendarSyncButton";
-import PlaidLinkButton from "@/components/PlaidButton";
-import { apiFetch, setAuthToken } from "@/lib/api";
+import { apiFetch } from "@/lib/api";
 
 interface DashboardData {
   debtProgress: {
@@ -42,6 +56,27 @@ interface DashboardData {
     secondaryCTA: string;
   };
 }
+
+interface TypeConfigEntry {
+  dot: string;
+  Icon: IconType;
+  badge: string;
+  iconClass: string;
+}
+
+const TYPE_CONFIG: Record<string, TypeConfigEntry> = {
+  "Housing": { dot: "bg-emerald-400", Icon: TbHome, badge: "bg-emerald-100 text-emerald-700", iconClass: "text-emerald-500" },
+  "Food & Dining": { dot: "bg-orange-400", Icon: TbToolsKitchen2, badge: "bg-orange-100 text-orange-700", iconClass: "text-orange-500" },
+  "Transportation": { dot: "bg-blue-400", Icon: TbCar, badge: "bg-blue-100 text-blue-700", iconClass: "text-blue-500" },
+  "Healthcare": { dot: "bg-rose-400", Icon: TbBuildingHospital, badge: "bg-rose-100 text-rose-700", iconClass: "text-rose-500" },
+  "Entertainment": { dot: "bg-purple-400", Icon: TbDeviceTv, badge: "bg-purple-100 text-purple-700", iconClass: "text-purple-500" },
+  "Shopping": { dot: "bg-amber-400", Icon: TbShoppingBag, badge: "bg-amber-100 text-amber-700", iconClass: "text-amber-500" },
+  "Debt Payments": { dot: "bg-red-400", Icon: TbCreditCard, badge: "bg-red-100 text-red-700", iconClass: "text-red-500" },
+  "Other": { dot: "bg-slate-400", Icon: TbQuestionMark, badge: "bg-slate-100 text-slate-700", iconClass: "text-slate-400" },
+  "default": { dot: "bg-slate-400", Icon: TbQuestionMark, badge: "bg-slate-100 text-slate-700", iconClass: "text-slate-400" },
+};
+
+const getTypeConfig = (type: string): TypeConfigEntry => TYPE_CONFIG[type] ?? TYPE_CONFIG.default;
 
 const variants = {
   upcomingEventsCostBadge: cva("", {
@@ -147,25 +182,32 @@ export default function Dashboard() {
                 <GoogleCalendarSyncButton onSyncComplete={fetchDashboard} />
               </div>
               <div className="grow space-y-4">
-                {upcomingEvents.map((event, i) => (
-                  <div key={i} className="group rounded-lg border border-slate-100 bg-slate-50 p-3 transition-all">
-                    <div className="flex items-start justify-between">
-                      <div className="flex flex-col gap-1">
-                        <span className="text-xs font-bold uppercase text-slate-400">{event.time}</span>
-                        {event.category && (
-                          <span className="w-fit rounded-full bg-slate-200 px-2 py-0.5 text-[8px] font-black uppercase text-slate-500">{event.category}</span>
-                        )}
+                {upcomingEvents.map((event, i) => {
+                  const cfg = getTypeConfig(event.category || "Other");
+                  return (
+                    <div key={i} className="group flex items-center gap-4 rounded-xl border border-slate-50 bg-slate-50/50 p-4 transition-all">
+                      <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl ${cfg.badge}`}>
+                        <cfg.Icon className="h-6 w-6" />
                       </div>
-                      <span
-                        className={`rounded px-2 py-0.5 text-[10px] font-bold ${variants.upcomingEventsCostBadge({ intents: event.cost > 0 ? "spend" : "none" })}`}
-                      >
-                        {event.cost > 0 ? "-" : ""}${event.cost}
-                      </span>
+                      <div className="flex grow items-center justify-between">
+                        <div className="flex flex-col gap-0.5">
+                          <p className="line-clamp-1 text-sm font-bold text-slate-900">{event.name}</p>
+                          <div className="flex items-center gap-2 text-slate-500">
+                            <span className="text-[10px] font-bold uppercase tracking-wider">{event.time}</span>
+                            <span className={`h-1 w-1 rounded-full bg-slate-500`}></span>
+                            <span className="text-[10px] font-bold uppercase tracking-wider">{event.category}</span>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm font-black text-slate-900">${event.cost}</p>
+                          <p className={`text-[10px] font-bold uppercase tracking-wider ${event.cost > 0 ? "text-red-400" : "text-slate-400"}`}>
+                            {event.cost > 0 ? "Predicted" : "No Cost"}
+                          </p>
+                        </div>
+                      </div>
                     </div>
-                    <p className="mt-1 text-sm font-semibold">{event.name}</p>
-                    <p className="mt-1 text-xs text-slate-500">{event.location}</p>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
               <Link href={"/calendar"} className="mt-4 flex w-full items-center justify-center gap-1 py-2 text-xs font-bold text-green-500 hover:underline">
                 View Full Calendar

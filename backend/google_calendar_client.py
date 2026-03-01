@@ -30,6 +30,6 @@ async def get_google_calendar_events(access_token: str, days: int = 30):
             events.append({
                 "label": item.get('summary', 'No Title'),
                 "date": date_str,
-                "type": "Calendar Event"
+                "type": "Other"
             })
         return events

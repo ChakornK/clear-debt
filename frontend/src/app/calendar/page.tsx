@@ -2,16 +2,31 @@
 
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
-import { TbChevronLeft, TbChevronRight, TbRefresh, TbFileText, TbCreditCard, TbPin, TbReportMoney, TbCalendarEvent, TbList, TbPlus } from "react-icons/tb";
+import {
+  TbChevronLeft,
+  TbChevronRight,
+  TbHome,
+  TbToolsKitchen2,
+  TbCar,
+  TbBuildingHospital,
+  TbDeviceTv,
+  TbShoppingBag,
+  TbCreditCard,
+  TbQuestionMark,
+  TbReportMoney,
+  TbCalendarEvent,
+  TbPlus,
+  TbList,
+} from "react-icons/tb";
 import type { IconType } from "react-icons";
 import Modal from "@/components/Modal";
 import { apiFetch } from "@/lib/api";
 
-type EventType = "subscription" | "bill" | "expense" | "default";
+type EventType = "Housing" | "Food & Dining" | "Transportation" | "Healthcare" | "Entertainment" | "Shopping" | "Debt Payments" | "Other" | "default";
 
 interface CalendarEvent {
   date: string;
-  type: EventType;
+  type: string;
   label: string;
   amount: number;
 }
@@ -49,11 +64,16 @@ const DAYS_OF_WEEK = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
 
 const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"] as const;
 
-const TYPE_CONFIG: Record<EventType, TypeConfigEntry> = {
-  subscription: { dot: "bg-emerald-400", Icon: TbRefresh, badge: "bg-emerald-100 text-emerald-700", iconClass: "text-emerald-500" },
-  bill: { dot: "bg-blue-400", Icon: TbFileText, badge: "bg-blue-100 text-blue-700", iconClass: "text-blue-500" },
-  expense: { dot: "bg-amber-400", Icon: TbCreditCard, badge: "bg-amber-100 text-amber-700", iconClass: "text-amber-500" },
-  default: { dot: "bg-slate-400", Icon: TbPin, badge: "bg-slate-100 text-slate-700", iconClass: "text-slate-400" },
+const TYPE_CONFIG: Record<string, TypeConfigEntry> = {
+  "Housing": { dot: "bg-emerald-400", Icon: TbHome, badge: "bg-emerald-100 text-emerald-700", iconClass: "text-emerald-500" },
+  "Food & Dining": { dot: "bg-orange-400", Icon: TbToolsKitchen2, badge: "bg-orange-100 text-orange-700", iconClass: "text-orange-500" },
+  "Transportation": { dot: "bg-blue-400", Icon: TbCar, badge: "bg-blue-100 text-blue-700", iconClass: "text-blue-500" },
+  "Healthcare": { dot: "bg-rose-400", Icon: TbBuildingHospital, badge: "bg-rose-100 text-rose-700", iconClass: "text-rose-500" },
+  "Entertainment": { dot: "bg-purple-400", Icon: TbDeviceTv, badge: "bg-purple-100 text-purple-700", iconClass: "text-purple-500" },
+  "Shopping": { dot: "bg-amber-400", Icon: TbShoppingBag, badge: "bg-amber-100 text-amber-700", iconClass: "text-amber-500" },
+  "Debt Payments": { dot: "bg-red-400", Icon: TbCreditCard, badge: "bg-red-100 text-red-700", iconClass: "text-red-500" },
+  "Other": { dot: "bg-slate-400", Icon: TbQuestionMark, badge: "bg-slate-100 text-slate-700", iconClass: "text-slate-400" },
+  "default": { dot: "bg-slate-400", Icon: TbQuestionMark, badge: "bg-slate-100 text-slate-700", iconClass: "text-slate-400" },
 };
 
 const POPOVER_WIDTH = 320;
@@ -114,10 +134,19 @@ interface AddExpenseFields {
   date: string;
 }
 
-const EXPENSE_TYPES: Exclude<EventType, "default">[] = ["expense", "bill", "subscription"];
+const EXPENSE_TYPES: Exclude<EventType, "default">[] = [
+  "Housing",
+  "Food & Dining",
+  "Transportation",
+  "Healthcare",
+  "Entertainment",
+  "Shopping",
+  "Debt Payments",
+  "Other",
+];
 
 function AddExpenseForm({ date, onChange }: { date: string; onChange: (fields: AddExpenseFields) => void }) {
-  const [fields, setFields] = useState<AddExpenseFields>({ label: "", amount: "", type: "expense", date });
+  const [fields, setFields] = useState<AddExpenseFields>({ label: "", amount: "", type: "Other", date });
 
   function update<K extends keyof AddExpenseFields>(key: K, value: AddExpenseFields[K]): void {
     const next = { ...fields, [key]: value };
@@ -156,7 +185,7 @@ function AddExpenseForm({ date, onChange }: { date: string; onChange: (fields: A
       </div>
       <div>
         <label className={labelClass}>Type</label>
-        <div className="flex gap-2">
+        <div className="grid grid-cols-2 gap-2">
           {EXPENSE_TYPES.map((t) => {
             const cfg = TYPE_CONFIG[t];
             const isActive = fields.type === t;

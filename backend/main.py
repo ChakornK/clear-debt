@@ -138,7 +138,8 @@ async def sync_google_calendar(request: Request, user: dict = Depends(get_curren
             return {"synced": 0, "events": []}
         
         # 2. Fetch existing events from Snowflake to check for cache
-        existing_events = get_calendar_events(user_id)
+        # existing_events = get_calendar_events(user_id)
+        existing_events = []
         
         # Create a lookup set for (label, date)
         cache_lookup = {(e['label'], e['date']) for e in existing_events if e.get('amount', 0) > 0}
@@ -158,7 +159,7 @@ async def sync_google_calendar(request: Request, user: dict = Depends(get_curren
             if existing:
               already_predicted.append({
                 "date": e_date,
-                "type": "Calendar Event",
+                "type": existing['type'],
                 "label": e['label'],
                 "amount": existing['amount']
               })
@@ -174,7 +175,7 @@ async def sync_google_calendar(request: Request, user: dict = Depends(get_curren
                     pred = predictions[i] if i < len(predictions) else {}
                     new_estimated.append({
                         "date": e['date'],
-                        "type": "Calendar Event",
+                        "type": pred.get('type', "Other"),
                         "label": e['label'],
                         "amount": pred.get('predictedAmount', 0)
                     })
@@ -183,7 +184,7 @@ async def sync_google_calendar(request: Request, user: dict = Depends(get_curren
                 for e in to_predict:
                     new_estimated.append({
                         "date": e['date'],
-                        "type": "Calendar Event",
+                        "type": "Other",
                         "label": e['label'],
                         "amount": 0
                     })
@@ -341,7 +342,7 @@ async def get_dashboard(user: dict = Depends(get_current_user)):
                     "cost": e['amount'],
                     "name": e['label'],
                     "location": "Remote",
-                    "category": cached_cat_map.get(e['label'], "Other")
+                    "category": e.get('type', "Other")
                 })
 
         # ── WEEKLY SPENDING ────────────────────────────
@@ -393,14 +394,14 @@ async def get_dashboard(user: dict = Depends(get_current_user)):
         
         # Color map for diverse categories
         colors = {
-            "Housing": "bg-blue-500",
-            "Food & Dining": "bg-green-400",
-            "Transportation": "bg-orange-400",
-            "Healthcare": "bg-red-400",
+            "Housing": "bg-emerald-400",
+            "Food & Dining": "bg-orange-400",
+            "Transportation": "bg-blue-400",
+            "Healthcare": "bg-rose-400",
             "Entertainment": "bg-purple-400",
-            "Shopping": "bg-pink-400",
-            "Debt Payments": "bg-indigo-500",
-            "Other": "bg-slate-300"
+            "Shopping": "bg-amber-400",
+            "Debt Payments": "bg-red-400",
+            "Other": "bg-slate-400"
         }
         
         categories = [
