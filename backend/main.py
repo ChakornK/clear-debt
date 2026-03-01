@@ -1,12 +1,16 @@
 from fastapi import FastAPI, HTTPException, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
-from models import ExchangeTokenRequest, SaveDebtsRequest, GeneratePlanRequest, ChatRequest, CalendarEvent
+from models import (ExchangeTokenRequest, SaveDebtsRequest, GeneratePlanRequest, 
+                    ChatRequest, CalendarEvent, DashboardResponse)
 from plaid_client import create_link_token, exchange_public_token, get_accounts, get_transactions, get_liabilities
 from snowflake_client import (save_access_token, get_access_token, save_debts,
     get_debts, save_transactions, get_transactions_raw, get_spending_summary,
-    save_calendar_events, get_calendar_events, save_plan, get_connection)
-from cortex import generate_plan, chat
+    save_calendar_events, get_calendar_events, save_plan, get_connection,
+    get_cached_milestone, save_milestone, get_cached_category_mappings, save_category_mappings,
+    get_dashboard_data)
+import time
+from cortex import generate_plan, chat, generate_milestone, classify_transactions
 from math_engine import calc_all_strategies
 from pydantic import BaseModel
 from typing import List
@@ -179,151 +183,203 @@ async def chat_route(req: ChatRequest, user: dict = Depends(get_current_user)):
 from datetime import datetime, timedelta
 import random
 
-@app.get("/api/dashboard")
+# Simple in-memory cache
+DASHBOARD_CACHE = {} # {user_id: {"data": ..., "timestamp": ...}}
+CACHE_TTL = 300 # 5 minutes
+
+@app.get("/api/dashboard", response_model=DashboardResponse)
 async def get_dashboard(user: dict = Depends(get_current_user)):
     try:
         user_id = user['sub']
-        access_token = get_access_token(user_id)
-        if not access_token:
-            raise HTTPException(status_code=404, detail="No linked account found")
+        
+        # ── CACHE CHECK ────────────────────────────────
+        now_ts = time.time()
+        if user_id in DASHBOARD_CACHE:
+            entry = DASHBOARD_CACHE[user_id]
+            if now_ts - entry['timestamp'] < CACHE_TTL:
+                return entry['data']
 
-        # Pull real data from Snowflake
-        debts = get_debts(user_id)
-        spending = get_spending_summary(user_id)
-        events = get_calendar_events(user_id)
-        transactions = get_transactions(access_token, user_id)
-
+        # 1. Fetch data from Snowflake (Consolidated into 1 connection)
+        db_data = get_dashboard_data(user_id)
+        debts = db_data['debts']
+        spending = db_data['spending']
+        events = db_data['events']
+        raw_txns = db_data['raw_txns']
+        cached_cat_map = db_data['cat_map']
+        
         # ── DEBT PROGRESS ──────────────────────────────
-        total_debt = sum(d['balance'] for d in debts)
-        # Calculate how much has been paid by comparing to original balances
-        # For now derive paid amount from transaction history payments
-        paid = round(total_debt * 0.34, 2)  # fallback estimate
+        total_debt = sum(d['balance'] for d in debts) if debts else 0
+        # For 'paid', we look for 'Payment' transactions in the last 30 days
+        paid_this_month = sum(abs(t['amount']) for t in raw_txns 
+                             if 'Payment' in t['category'] 
+                             and datetime.fromisoformat(t['date']) >= datetime.now() - timedelta(days=30))
+        
+        # Estimate target date
+        target_date = ""
+        if debts:
+            total_min = sum(d['minimum'] for d in debts)
+            if total_min > 0:
+                months = int(total_debt / (total_min + 200)) # assume extra $200
+                target_date = (datetime.now() + timedelta(days=months*30)).strftime("%B %Y")
 
-        # Estimate payoff date from minimum payments
-        monthly_payment = sum(d['minimum'] for d in debts) + 200
-        months_remaining = int(total_debt / monthly_payment) if monthly_payment else 60
-        target_date = (datetime.now() + timedelta(days=months_remaining * 30)).strftime("%B %Y")
+        # ── ACHIEVEMENT ────────────────────────────────
+        # Streak logic: count weeks under a $500 budget
+        budget_limit = 500
+        streak = 0
+        now = datetime.now()
+        for i in range(12): # check last 12 weeks
+            w_start = now - timedelta(weeks=i+1)
+            w_end = now - timedelta(weeks=i)
+            w_spent = sum(t['amount'] for t in raw_txns 
+                         if w_start <= datetime.fromisoformat(t['date']) < w_end
+                         and t['amount'] > 0)
+            if w_spent < budget_limit:
+                streak += 1
+            else:
+                break
+        
+        achievement = {
+            "label": "Underbudget Streak",
+            "value": f"{streak} weeks!" if streak > 0 else "New Start!"
+        }
+
+        # ── UPCOMING EVENTS ────────────────────────────
+        raw_event_labels = [e['label'] for e in events if datetime.fromisoformat(e['date']) >= datetime.now()]
+        to_classify_events = [l for l in raw_event_labels if l not in cached_cat_map]
+        
+        if to_classify_events:
+            event_new_mappings = classify_transactions(to_classify_events)
+            save_category_mappings(event_new_mappings)
+            cached_cat_map.update(event_new_mappings)
+        
+        upcoming = []
+        for e in events:
+            if datetime.fromisoformat(e['date']) >= datetime.now():
+                dt = datetime.fromisoformat(e['date'])
+                time_str = dt.strftime("%a, %H:%M") if dt.hour > 0 else dt.strftime("%a")
+                upcoming.append({
+                    "time": time_str,
+                    "cost": e['amount'],
+                    "name": e['label'],
+                    "location": "Remote",
+                    "category": cached_cat_map.get(e['label'], "Other")
+                })
 
         # ── WEEKLY SPENDING ────────────────────────────
-        # Group transactions by week (last 5 weeks)
-        weekly = []
+        weeks = []
         for i in range(4, -1, -1):
-            week_start = datetime.now() - timedelta(weeks=i+1)
-            week_end = datetime.now() - timedelta(weeks=i)
-            week_txns = [
-                t for t in transactions
-                if week_start <= datetime.fromisoformat(t['date']) <= week_end
-            ]
-            spent = round(sum(t['amount'] for t in week_txns), 2)
-            weekly.append({
+            w_start = now - timedelta(weeks=i+1)
+            w_end = now - timedelta(weeks=i)
+            w_spent = sum(t['amount'] for t in raw_txns 
+                         if w_start <= datetime.fromisoformat(t['date']) < w_end
+                         and t['amount'] > 0)
+            weeks.append({
                 "week": f"W{5-i}",
-                "spent": spent if spent > 0 else random.randint(150, 350),
+                "spent": round(w_spent, 2),
                 "active": i == 0
             })
 
-        budget_limit = 500
-
         # ── DAILY DISTRIBUTION ─────────────────────────
-        days = ["M", "T", "W", "T", "F", "S", "S"]
-        today_weekday = datetime.now().weekday()
         daily = []
-        for i, day in enumerate(days):
-            day_date = datetime.now() - timedelta(days=(today_weekday - i) % 7)
-            day_txns = [
-                t for t in transactions
-                if t['date'] == day_date.strftime('%Y-%m-%d')
-            ]
-            spent = round(sum(t['amount'] for t in day_txns), 2)
+        days_map = ["M", "T", "W", "T", "F", "S", "S"]
+        # Last 7 days
+        for i in range(6, -1, -1):
+            target_day = now - timedelta(days=i)
+            d_spent = sum(t['amount'] for t in raw_txns 
+                         if datetime.fromisoformat(t['date']).date() == target_day.date()
+                         and t['amount'] > 0)
             daily.append({
-                "day": day,
-                "spent": spent if spent > 0 else random.randint(20, 70),
-                "active": i >= today_weekday - 1
+                "day": days_map[target_day.weekday()],
+                "spent": round(d_spent, 2),
+                "active": i == 0
             })
 
         # ── SPENDING CATEGORIES ────────────────────────
-        category_map = {
-            "Groceries": "Essentials", "Utilities": "Essentials",
-            "Transport": "Essentials", "Dining": "Leisure",
-            "Entertainment": "Leisure", "Subscriptions": "Leisure"
-        }
-        buckets = {"Essentials": 0, "Leisure": 0, "Other": 0}
+        raw_categories = list(set(s['category'] for s in spending))
+        
+        # Determine which categories need classification
+        to_classify = [c for c in raw_categories if c not in cached_cat_map]
+        
+        if to_classify:
+            new_mappings = classify_transactions(to_classify)
+            save_category_mappings(new_mappings)
+            cached_cat_map.update(new_mappings)
+
+        buckets = {}
         for s in spending:
-            bucket = category_map.get(s['category'], "Other")
-            buckets[bucket] += s['total']
-
-        total_spend = sum(buckets.values()) or 1
+            b_name = cached_cat_map.get(s['category'], "Other")
+            buckets[b_name] = buckets.get(b_name, 0) + s['total']
+        
+        total_sum = sum(buckets.values()) or 1
+        
+        # Color map for diverse categories
+        colors = {
+            "Housing": "bg-blue-500",
+            "Food & Dining": "bg-green-400",
+            "Transportation": "bg-orange-400",
+            "Healthcare": "bg-red-400",
+            "Entertainment": "bg-purple-400",
+            "Shopping": "bg-pink-400",
+            "Debt Payments": "bg-indigo-500",
+            "Other": "bg-slate-300"
+        }
+        
         categories = [
-            {"color": "bg-green-400", "label": "Essentials", "pct": round(buckets["Essentials"] / total_spend * 100)},
-            {"color": "bg-slate-400", "label": "Leisure",    "pct": round(buckets["Leisure"]    / total_spend * 100)},
-            {"color": "bg-slate-200", "label": "Other",      "pct": round(buckets["Other"]       / total_spend * 100)},
+            {
+                "color": colors.get(label, "bg-slate-200"),
+                "label": label,
+                "pct": int(val / total_sum * 100)
+            }
+            for label, val in buckets.items() if val > 0
         ]
+        
+        # Sort by percentage descending
+        categories.sort(key=lambda x: x['pct'], reverse=True)
 
-        # ── UPCOMING EVENTS ────────────────────────────
-        upcoming = []
-        for e in events[:3]:
-            event_dt = datetime.fromisoformat(e['date'])
-            diff = (event_dt.date() - datetime.now().date()).days
-            if diff == 1:
-                time_str = f"Tomorrow, {event_dt.strftime('%H:%M') if 'T' in e['date'] else '09:00'}"
-            elif diff == 0:
-                time_str = "Today"
-            else:
-                time_str = event_dt.strftime("%a, %H:%M") if 'T' in e['date'] else event_dt.strftime("%a")
-            upcoming.append({
-                "time": time_str,
-                "cost": e['amount'],
-                "name": e['label'],
-                "location": "—"
-            })
+        # ── AI MILESTONE ───────────────────────────────
+        milestone = get_cached_milestone(user_id)
+        
+        if not milestone:
+            try:
+                milestone = generate_milestone(debts, spending, events)
+                save_milestone(user_id, milestone)
+            except:
+                # Fallback if AI fails
+                milestone = {
+                    "tag": "Milestone Alert",
+                    "title": "You're making great progress!",
+                    "description": "Keep staying under your weekly budget to clear your debts faster.",
+                    "primaryCTA": "View Plan",
+                    "secondaryCTA": "Got it"
+                }
 
-        # Pad with defaults if fewer than 3 events
-        defaults = [
-            {"time": "Tomorrow, 14:00", "cost": 15,  "name": "Study Group at Coffee Shop", "location": "Downtown Branch"},
-            {"time": "Thu, 18:30",      "cost": 45,  "name": "Weekly Grocery Run",         "location": "Organic Market"},
-            {"time": "Sat, 10:00",      "cost": 0,   "name": "Morning Hike",               "location": "Canyon Trail"},
-        ]
-        while len(upcoming) < 3:
-            upcoming.append(defaults[len(upcoming)])
-
-        # ── ACHIEVEMENT ────────────────────────────────
-        under_budget_weeks = sum(1 for w in weekly if w['spent'] < budget_limit)
-        achievement = {
-            "label": "Underbudget Streak",
-            "value": f"{under_budget_weeks} week{'s' if under_budget_weeks != 1 else ''}!"
-        }
-
-        # ── MILESTONE ──────────────────────────────────
-        # Find highest leisure spend reduction opportunity
-        leisure_spend = buckets.get("Leisure", 0)
-        saved_estimate = round(leisure_spend * 0.3, 0)
-        smallest_debt = min(debts, key=lambda d: d['balance']) if debts else None
-        milestone = {
-            "tag": "Milestone Alert",
-            "title": f"You saved an extra ${int(saved_estimate)} this month from dining out!",
-            "description": f"That's enough to clear your '{smallest_debt['name'] if smallest_debt else 'Subscription Debt'}' faster. Would you like to apply this to your plan?",
-            "primaryCTA": "Apply to Debt",
-            "secondaryCTA": "View Details"
-        }
-
-        return {
+        response_payload = {
             "debtProgress": {
-                "paid": paid,
+                "paid": round(paid_this_month, 2),
                 "total": round(total_debt, 2),
                 "targetDate": target_date
             },
             "achievement": achievement,
-            "upcomingEvents": upcoming,
+            "upcomingEvents": upcoming[:3],
             "weeklySpending": {
                 "budgetLimit": budget_limit,
-                "weeks": weekly
+                "weeks": weeks
             },
             "dailyDistribution": daily,
             "spendingCategories": {
-                "total": round(total_spend, 2),
+                "total": round(total_sum, 2),
                 "categories": categories
             },
             "milestone": milestone
         }
+        
+        # Update Cache
+        DASHBOARD_CACHE[user_id] = {
+            "data": response_payload,
+            "timestamp": time.time()
+        }
+
+        return response_payload
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -351,4 +407,5 @@ async def scan_receipt(user_id: str, file: UploadFile = File(...)):
     except HTTPException:
         raise
     except Exception as e:
+        print(f"Error in get_dashboard: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
