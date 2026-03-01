@@ -7,7 +7,7 @@ python-dotenv
 snowflake
 snowflake-ml-python
 snowflake-snowpark-python
-google-generativeai
+google-genai
 authlib
 itsdangerous
 httpx
